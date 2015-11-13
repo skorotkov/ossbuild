@@ -1389,6 +1389,8 @@ gst_poll_wait (GstPoll * set, GstClockTime timeout)
 
         if (ignore_count == 0 && wait_ret == WSA_WAIT_TIMEOUT) {
           res = 0;
+	  // don't know why these watches are not removed and executed in a loop
+	  Sleep(1);
         } else if (wait_ret == WSA_WAIT_FAILED) {
           res = -1;
           errno = gst_poll_winsock_error_to_errno (WSAGetLastError ());

@@ -418,7 +418,7 @@ gst_multiudpsink_init (GstMultiUDPSink * sink)
 
     /* Unless we can confirm that dual-stack works, don't use it */
   sink->dualstack = FALSE;
-
+#if 0
 #ifndef __APPLE_CC__
   {
     int testsock;
@@ -440,6 +440,7 @@ gst_multiudpsink_init (GstMultiUDPSink * sink)
     }
   }
   #endif
+#endif
   GST_DEBUG_OBJECT (sink, "Dualstack mode: %d", sink->dualstack);
 }
 
@@ -499,8 +500,9 @@ static gboolean
 socket_error_is_ignorable (void)
 {
 #ifdef G_OS_WIN32
-  /* Windows doesn't seem to have an EAGAIN for sockets */
-  return WSAGetLastError () == WSAEINTR;
+  int errorcode = WSAGetLastError ();
+  /* Looks like the EAGAIN for Windows is EWOULDBLOCK */
+  return errorcode == WSAEINTR || errorcode == WSAEWOULDBLOCK;
 #else
   return errno == EINTR || errno == EAGAIN;
 #endif
@@ -969,7 +971,12 @@ gst_multiudpsink_configure_client (GstMultiUDPSink * sink,
     }
     GST_DEBUG_OBJECT (sink, "setting loop to %d", sink->loop);
     if (gst_udp_set_loop (sink->sock, sink->ss_family, sink->loop) != 0)
+#ifdef G_OS_WIN32
+      /* This still fails on some Windows versions, ignore the error */
+      return TRUE;
+#else
       goto loop_failed;
+#endif
     GST_DEBUG_OBJECT (sink, "setting ttl to %d", sink->ttl_mc);
     if (gst_udp_set_ttl (sink->sock, sink->ss_family, sink->ttl_mc, TRUE) != 0){
 #ifdef G_OS_WIN32

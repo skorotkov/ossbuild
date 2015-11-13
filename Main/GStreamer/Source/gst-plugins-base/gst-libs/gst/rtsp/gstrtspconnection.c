@@ -51,6 +51,8 @@
  * Last reviewed on 2007-07-24 (0.10.14)
  */
 
+#define G_IO_WIN32_DEBUG
+
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
@@ -360,7 +362,8 @@ gst_rtsp_connection_create_from_fd (gint fd, const gchar * ip, guint16 port,
 #ifndef G_OS_WIN32
   fcntl (fd, F_SETFL, O_NONBLOCK);
 #else
-  ioctlsocket (fd, FIONBIO, &flags);
+  if (ioctlsocket (fd, FIONBIO, &flags) != 0)
+    GST_WARNING ("Error creating socket!");
 #endif /* G_OS_WIN32 */
 
   /* create a url for the client address */
@@ -377,6 +380,11 @@ gst_rtsp_connection_create_from_fd (gint fd, const gchar * ip, guint16 port,
   /* both read and write initially */
   newconn->readfd = &newconn->fd0;
   newconn->writefd = &newconn->fd0;
+
+#ifdef G_OS_WIN32
+  gst_poll_fd_ctl_read (newconn->fdset, &newconn->fd0, TRUE);
+  gst_poll_fd_ctl_write (newconn->fdset, &newconn->fd0, TRUE);
+#endif
 
   newconn->ip = g_strdup (ip);
 
@@ -2269,7 +2277,9 @@ gst_rtsp_connection_receive (GstRTSPConnection * conn, GstRTSPMessage * message,
     if (gst_poll_fd_has_error (conn->fdset, conn->writefd))
       goto socket_error;
 
-    gst_poll_set_controllable (conn->fdset, FALSE);
+    /* once we start reading the wait cannot be controlled */
+    if (builder.state != STATE_START)
+      gst_poll_set_controllable (conn->fdset, FALSE);
   }
 
   /* we have a message here */
@@ -3047,6 +3057,11 @@ struct _GstRTSPWatch
   GPollFD readfd;
   GPollFD writefd;
 
+#ifdef G_OS_WIN32
+  GPollFD readfdEvent;
+  GPollFD writefdEvent;
+#endif
+
   /* queued message for transmission */
   guint id;
   GMutex *mutex;
@@ -3079,7 +3094,22 @@ static gboolean
 gst_rtsp_source_check (GSource * source)
 {
   GstRTSPWatch *watch = (GstRTSPWatch *) source;
+#ifdef G_OS_WIN32
+  gboolean rv = FALSE;
+  watch->readfd.revents = 0;
+  watch->writefd.revents = 0;
 
+  gst_poll_wait (watch->conn->fdset, 0);
+  if (gst_poll_fd_can_read (watch->conn->fdset, watch->conn->readfd)) {
+    watch->readfd.revents |= G_IO_IN;
+    rv = TRUE;
+  }
+  if (gst_poll_fd_can_write (watch->conn->fdset, watch->conn->writefd)) {
+    watch->writefd.revents |= G_IO_OUT;
+    rv = TRUE;
+  }
+  return rv;
+#else
   if (watch->readfd.revents & READ_COND)
     return TRUE;
 
@@ -3087,6 +3117,7 @@ gst_rtsp_source_check (GSource * source)
     return TRUE;
 
   return FALSE;
+#endif
 }
 
 static gboolean
@@ -3400,10 +3431,43 @@ gst_rtsp_watch_reset (GstRTSPWatch * watch)
   watch->writefd.events = WRITE_ERR;
   watch->writefd.revents = 0;
 
+#ifndef G_OS_WIN32
   if (watch->readfd.fd != -1)
     g_source_add_poll ((GSource *) watch, &watch->readfd);
   if (watch->writefd.fd != -1)
     g_source_add_poll ((GSource *) watch, &watch->writefd);
+#else
+  /* On Windows we can not pass socket descriptor to g_source_add_poll()
+     (see the comment at gpoll.h). Instead the Event HANDLE obtainned
+     from the WSAEventSelect() for the socket should be used. */
+
+  if (watch->conn->readfd->fd != -1) {
+    /* Use CreateEvent() instead of the WSACreateEvent() one to create the auto-reset event */
+
+    /* auto-reset event do not work on Windows7 */
+/*
+    watch->readfdEvent.fd = (gint) CreateEvent(NULL, FALSE, FALSE, NULL);
+*/     
+    watch->readfdEvent.fd = (gint) WSACreateEvent();
+
+    watch->readfdEvent.events = READ_COND;
+    watch->readfdEvent.revents = 0;
+    WSAEventSelect(watch->readfd.fd, (HANDLE)watch->readfdEvent.fd, FD_READ | FD_WRITE | FD_CLOSE);
+    g_source_add_poll ((GSource *) watch, &watch->readfdEvent);
+  }
+  if (watch->conn->writefd->fd != -1) {
+    /* Use CreateEvent() instead of the WSACreateEvent() one to create the auto-reset event */
+/*
+    watch->writefdEvent.fd = (gint) CreateEvent(NULL, FALSE, FALSE, NULL);
+*/
+    watch->writefdEvent.fd = (gint) WSACreateEvent();
+
+    watch->writefdEvent.events = WRITE_ERR;
+    watch->writefdEvent.revents = 0;
+    WSAEventSelect(watch->writefd.fd, (HANDLE)watch->writefdEvent.fd, FD_READ | FD_WRITE | FD_CLOSE);
+    g_source_add_poll ((GSource *) watch, &watch->writefdEvent);
+  }
+#endif
 }
 
 /**
