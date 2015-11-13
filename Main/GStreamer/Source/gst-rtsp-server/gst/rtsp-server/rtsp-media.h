@@ -230,6 +230,8 @@ struct _GstRTSPMedia {
 
   /* the range of media */
   GstRTSPTimeRange   range;
+  gint64 range_start;
+  gint64 range_stop;
 };
 
 /**
