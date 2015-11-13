@@ -57,6 +57,8 @@
 #include "config.h"
 #endif
 
+#include <glib.h>
+
 #include <stdlib.h>
 #include <string.h>
 #include <gst/rtp/gstrtpbuffer.h>
@@ -1509,11 +1511,44 @@ get_sync_time (GstRtpJitterBuffer * jitterbuffer, GstClockTime timestamp)
   return result;
 }
 
+// list of valid jitterbuffers with mutex
+static GList* vj_list = 0;
+static GStaticMutex vj_mutex = G_STATIC_MUTEX_INIT;
+
+static void vj_insert(const gpointer _data)
+{
+    g_static_mutex_lock(&vj_mutex);
+    vj_list = g_list_append(vj_list, _data);
+    g_static_mutex_unlock(&vj_mutex);
+}
+
+static void vj_remove(const gpointer _data)
+{
+    g_static_mutex_lock(&vj_mutex);
+    vj_list = g_list_remove(vj_list, _data);
+    g_static_mutex_unlock(&vj_mutex);
+}
+
+static int vj_contains(const gpointer _data)
+{
+    int ret;
+    g_static_mutex_lock(&vj_mutex);
+    ret = ((g_list_find(vj_list, _data) != 0) ? 1 : 0);
+    g_static_mutex_unlock(&vj_mutex);
+    return ret;
+}
+
 static gboolean
 eos_reached (GstClock * clock, GstClockTime time, GstClockID id,
     GstRtpJitterBuffer * jitterbuffer)
 {
   GstRtpJitterBufferPrivate *priv;
+
+  // try to test if jitterbuffer is valid
+  if (!vj_contains(jitterbuffer)) {
+      GST_WARNING("in eos_reached with bad jitterbuffer %x\n", (guint32) jitterbuffer);
+      return FALSE;
+  }
 
   priv = jitterbuffer->priv;
 
@@ -1561,6 +1596,11 @@ compute_elapsed (GstRtpJitterBuffer * jitterbuffer, GstBuffer * outbuf)
 
   elapsed = gst_util_uint64_scale_int (elapsed, GST_SECOND, priv->clock_rate);
   return elapsed;
+}
+
+static void reportLifetimeCb(gpointer _data)
+{
+  GST_INFO("destroying %x in jitterbuffer\n", (guint32) _data);
 }
 
 /*
@@ -1640,12 +1680,21 @@ again:
         sync_time = get_sync_time (jitterbuffer, priv->estimated_eos);
 
         GST_OBJECT_LOCK (jitterbuffer);
+        if (g_object_get_data(G_OBJECT(jitterbuffer), "my-data") == 0)
+          g_object_set_data_full(G_OBJECT(jitterbuffer), "my-data", jitterbuffer, reportLifetimeCb);
+        if (g_object_get_data(G_OBJECT(priv->jbuf), "my-data") == 0)
+          g_object_set_data_full(G_OBJECT(priv->jbuf), "my-data", priv->jbuf, reportLifetimeCb);
         clock = GST_ELEMENT_CLOCK (jitterbuffer);
         if (clock) {
-          GST_INFO_OBJECT (jitterbuffer, "scheduling timeout");
+          GST_INFO_OBJECT (jitterbuffer, "scheduling timeout of %x:%x for %x", (guint32) (sync_time>>32),
+			   (guint32) (sync_time&0xFFFFFFFFul), (guint32) jitterbuffer);
+          if (g_object_get_data(G_OBJECT(clock), "my-data") == 0)
+            g_object_set_data_full(G_OBJECT(clock), "my-data", clock, reportLifetimeCb);
           id = gst_clock_new_single_shot_id (clock, sync_time);
+	  vj_insert(jitterbuffer);
           gst_clock_id_wait_async (id, (GstClockCallback) eos_reached,
               jitterbuffer);
+          GST_INFO_OBJECT (jitterbuffer, "scheduling timeout %x", (guint32) id);
         }
         GST_OBJECT_UNLOCK (jitterbuffer);
       }
@@ -1660,8 +1709,11 @@ again:
 
     if (id) {
       /* unschedule any pending async notifications we might have */
+      GST_INFO_OBJECT (jitterbuffer, "unscheduling timeout %x for %x", (guint32) id, (guint32) jitterbuffer);
+      vj_remove(jitterbuffer);
       gst_clock_id_unschedule (id);
       gst_clock_id_unref (id);
+      id = NULL;
     }
     if (G_UNLIKELY (priv->srcresult != GST_FLOW_OK))
       goto flushing;
