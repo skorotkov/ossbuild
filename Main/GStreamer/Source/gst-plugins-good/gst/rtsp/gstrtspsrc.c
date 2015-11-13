@@ -2850,7 +2850,7 @@ gst_rtspsrc_stream_configure_udp_sinks (GstRTSPSrc * src,
     /* don't join multicast group, we will have the source socket do that */
     /* no sync or async state changes needed */
     g_object_set (G_OBJECT (stream->udpsink[0]), "auto-multicast", FALSE,
-        "loop", FALSE, "sync", FALSE, "async", FALSE, NULL);
+        "loop", TRUE, "sync", FALSE, "async", FALSE, NULL);
     if (ttl > 0)
       g_object_set (G_OBJECT (stream->udpsink[0]), "ttl", ttl, NULL);
 
@@ -2901,7 +2901,7 @@ gst_rtspsrc_stream_configure_udp_sinks (GstRTSPSrc * src,
     /* don't join multicast group, we will have the source socket do that */
     /* no sync or async state changes needed */
     g_object_set (G_OBJECT (stream->udpsink[1]), "auto-multicast", FALSE,
-        "loop", FALSE, "sync", FALSE, "async", FALSE, NULL);
+        "loop", TRUE, "sync", FALSE, "async", FALSE, NULL);
     if (ttl > 0)
       g_object_set (G_OBJECT (stream->udpsink[0]), "ttl", ttl, NULL);
 
