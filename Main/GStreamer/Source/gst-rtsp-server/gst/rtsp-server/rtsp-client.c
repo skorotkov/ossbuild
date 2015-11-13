@@ -60,6 +60,7 @@ enum
 enum
 {
   SIGNAL_CLOSED,
+  SIGNAL_START_PLAY,
   SIGNAL_LAST
 };
 
@@ -107,6 +108,11 @@ gst_rtsp_client_class_init (GstRTSPClientClass * klass)
   gst_rtsp_client_signals[SIGNAL_CLOSED] =
       g_signal_new ("closed", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
       G_STRUCT_OFFSET (GstRTSPClientClass, closed), NULL, NULL,
+      g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0, G_TYPE_NONE);
+
+  gst_rtsp_client_signals[SIGNAL_START_PLAY] =
+      g_signal_new ("start-play", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
+      G_STRUCT_OFFSET (GstRTSPClientClass, start_play), NULL, NULL,
       g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0, G_TYPE_NONE);
 
   tunnels =
@@ -814,6 +820,8 @@ handle_play_request (GstRTSPClient * client, GstRTSPClientState * state)
 
   send_response (client, session, state->response);
 
+  /* emit signal about play start */
+  g_signal_emit (client, gst_rtsp_client_signals[SIGNAL_START_PLAY], 0, NULL);
   /* start playing after sending the request */
   gst_rtsp_session_media_set_state (media, GST_STATE_PLAYING);
 

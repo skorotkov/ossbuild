@@ -110,6 +110,7 @@ struct _GstRTSPClientClass {
 
   /* signals */
   void     (*closed)        (GstRTSPClient *client);
+  void     (*start_play)    (GstRTSPClient *client);
 };
 
 GType                 gst_rtsp_client_get_type          (void);
