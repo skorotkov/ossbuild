@@ -482,11 +482,27 @@ do_resolve (const gchar * host)
   if (aierr != 0)
     goto no_addrinfo;
 
+#if 0
   for (ai = aires; ai; ai = ai->ai_next) {
     if (ai->ai_family == AF_INET || ai->ai_family == AF_INET6) {
       break;
     }
   }
+#else
+  /* no ipv6 */
+  for (ai = aires; ai; ai = ai->ai_next) {
+    if (ai->ai_family == AF_INET) {
+      break;
+    }
+  }
+  if (ai == NULL) {
+    for (ai = aires; ai; ai = ai->ai_next) {
+      if (ai->ai_family == AF_INET6) {
+        break;
+      }
+    }
+  }
+#endif
   if (ai == NULL)
     goto no_family;
 
@@ -547,11 +563,27 @@ do_connect (const gchar * ip, guint16 port, GstPollFD * fdout,
   if (aierr != 0)
     goto no_addrinfo;
 
+#if 0
   for (ai = aires; ai; ai = ai->ai_next) {
     if (ai->ai_family == AF_INET || ai->ai_family == AF_INET6) {
       break;
     }
   }
+#else
+  /* no ipv6 */
+  for (ai = aires; ai; ai = ai->ai_next) {
+    if (ai->ai_family == AF_INET) {
+      break;
+    }
+  }
+  if (ai == NULL) {
+    for (ai = aires; ai; ai = ai->ai_next) {
+      if (ai->ai_family == AF_INET6) {
+        break;
+      }
+    }
+  }
+#endif
   if (ai == NULL)
     goto no_family;
 
@@ -1526,6 +1558,10 @@ gst_rtsp_connection_send (GstRTSPConnection * conn, GstRTSPMessage * message,
   if (G_UNLIKELY (!(string = message_to_string (conn, message))))
     goto no_message;
 
+#ifdef DEBUG_RTSP_MSGS
+  g_print("rtsp message send: %.*s\n", string->len, string->str);
+#endif
+
   if (conn->tunneled) {
     str = g_base64_encode ((const guchar *) string->str, string->len);
     g_string_free (string, TRUE);
@@ -2116,6 +2152,9 @@ gst_rtsp_connection_read (GstRTSPConnection * conn, guint8 * data, guint size,
 
     gst_poll_set_controllable (conn->fdset, FALSE);
   }
+#ifdef DEBUG_RTSP_MSGS
+  g_print("rtsp message recv: %.*s\n", size, data);
+#endif
   return GST_RTSP_OK;
 
   /* ERRORS */

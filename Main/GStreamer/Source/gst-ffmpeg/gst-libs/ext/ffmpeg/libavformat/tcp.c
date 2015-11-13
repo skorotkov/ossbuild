@@ -51,7 +51,12 @@ static int tcp_open(URLContext *h, const char *uri, int flags)
         return AVERROR(EINVAL);
 
     memset(&hints, 0, sizeof(hints));
+#if 0
     hints.ai_family = AF_UNSPEC;
+#else
+    /* no ipv6 */
+    hints.ai_family = AF_INET;
+#endif
     hints.ai_socktype = SOCK_STREAM;
     snprintf(portstr, sizeof(portstr), "%d", port);
     if (getaddrinfo(hostname, portstr, &hints, &ai))

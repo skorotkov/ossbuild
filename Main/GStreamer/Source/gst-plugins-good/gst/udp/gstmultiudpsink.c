@@ -1216,11 +1216,16 @@ gst_multiudpsink_add_internal (GstMultiUDPSink * sink, const gchar * host,
   udpclient.port = port;
  
   GST_DEBUG_OBJECT (sink, "adding client on host %s, port %d", host, port);
-  
+
+#if 0
   if (sink->dualstack)
     family = AF_INET6;
   else
     family = AF_UNSPEC;
+#else
+  // no ipv6
+  family = AF_INET;
+#endif
 
   if (lock)
     g_mutex_lock (sink->client_lock);

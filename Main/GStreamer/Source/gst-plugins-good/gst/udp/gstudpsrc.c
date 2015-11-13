@@ -782,10 +782,18 @@ gst_udpsrc_start (GstBaseSrc * bsrc)
     /* need to allocate a socket */
     GST_DEBUG_OBJECT (src, "allocating socket for %s:%d", src->uri.host,
         src->uri.port);
+#if 0
     if ((ret =
             gst_udp_get_addr (src->uri.host, src->uri.port, &src->myaddr,
                 AF_UNSPEC)) < 0)
       goto getaddrinfo_error;
+#else
+    /* no ipv6 */
+    if ((ret =
+            gst_udp_get_addr (src->uri.host, src->uri.port, &src->myaddr,
+                AF_INET)) < 0)
+      goto getaddrinfo_error;
+#endif
 
     if ((ret = socket (src->myaddr.ss_family, SOCK_DGRAM, IPPROTO_UDP)) < 0)
       goto no_socket;

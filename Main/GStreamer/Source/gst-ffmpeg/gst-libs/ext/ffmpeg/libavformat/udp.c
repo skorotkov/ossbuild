@@ -173,7 +173,12 @@ static int udp_set_url(struct sockaddr_storage *addr,
     struct addrinfo *res0;
     int addr_len;
 
+#if 0
     res0 = udp_resolve_host(hostname, port, SOCK_DGRAM, AF_UNSPEC, 0);
+#else
+    /* no ipv6 */
+    res0 = udp_resolve_host(hostname, port, SOCK_DGRAM, AF_INET, 0);
+#endif
     if (res0 == 0) return AVERROR(EIO);
     memcpy(addr, res0->ai_addr, res0->ai_addrlen);
     addr_len = res0->ai_addrlen;
@@ -201,7 +206,12 @@ static int udp_socket_create(UDPContext *s,
 {
     int udp_fd = -1;
     struct addrinfo *res0 = NULL, *res = NULL;
+#if 0
     int family = AF_UNSPEC;
+#else
+    /* no ipv6 */
+    int family = AF_INET;
+#endif
 
     if (((struct sockaddr *) &s->dest_addr)->sa_family)
         family = ((struct sockaddr *) &s->dest_addr)->sa_family;

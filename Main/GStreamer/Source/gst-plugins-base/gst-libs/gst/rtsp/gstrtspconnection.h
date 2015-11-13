@@ -43,6 +43,9 @@
 #ifndef __GST_RTSP_CONNECTION_H__
 #define __GST_RTSP_CONNECTION_H__
 
+// define this to debug rtsp messages (OPTIONS, DESCRIBE, SETUP...)
+//#define DEBUG_RTSP_MSGS 1
+
 #include <glib.h>
 
 #include <gst/gstconfig.h>

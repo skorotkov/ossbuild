@@ -578,7 +578,12 @@ gst_rtsp_server_get_io_channel (GstRTSPServer * server)
   g_return_val_if_fail (GST_IS_RTSP_SERVER (server), NULL);
 
   memset (&hints, 0, sizeof (struct addrinfo));
+#if 0
   hints.ai_family = AF_UNSPEC;  /* Allow IPv4 or IPv6 */
+#else
+  /* no ipv6 */
+  hints.ai_family = AF_INET;
+#endif
   hints.ai_socktype = SOCK_STREAM;      /* stream socket */
   hints.ai_flags = AI_PASSIVE | AI_CANONNAME;   /* For wildcard IP address */
   hints.ai_protocol = 0;        /* Any protocol */

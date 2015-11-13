@@ -108,15 +108,38 @@ gst_udp_get_addr (const char *hostname, int port, struct sockaddr_storage *addr,
   }
 
   nres = res;
+#if 0
   while (nres) {
     if (sock_family == AF_UNSPEC &&
         (nres->ai_family == AF_INET || nres->ai_family == AF_INET6))
       break;
     else if (nres->ai_family == sock_family)
-       break;
       break;
     nres = nres->ai_next;
   }
+#else
+  /* no ipv6 */
+  nres = res;
+  while (nres) {
+    if (sock_family == AF_UNSPEC &&
+        (nres->ai_family == AF_INET))
+      break;
+    else if (nres->ai_family == sock_family)
+      break;
+    nres = nres->ai_next;
+  }
+  if (!nres) {
+    nres = res;
+    while (nres) {
+      if (sock_family == AF_UNSPEC &&
+          (nres->ai_family == AF_INET6))
+        break;
+      else if (nres->ai_family == sock_family)
+        break;
+      nres = nres->ai_next;
+    }
+  }
+#endif
 #ifndef G_OS_WIN32
   /* If we didn't accept any of the results, but we have a v4 address when
      looking for a v6 address, try it again as a v4mapped address.
