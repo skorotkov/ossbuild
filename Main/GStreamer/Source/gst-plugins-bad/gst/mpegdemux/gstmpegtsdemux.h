@@ -44,6 +44,8 @@
 #ifndef __GST_MPEGTS_DEMUX_H__
 #define __GST_MPEGTS_DEMUX_H__
 
+#define NO_MORE_PADS_FIX
+
 #include <gst/gst.h>
 #include <gst/base/gstadapter.h>
 
@@ -223,6 +225,10 @@ struct _GstMpegTSDemux {
 
   /* Cached base_PCR in GStreamer time. */
   GstClockTime      base_pts;
+#ifdef NO_MORE_PADS_FIX
+  /* Number of expected pads which have not been added yet */
+  gint              pending_pads;
+#endif
 };
 
 struct _GstMpegTSDemuxClass {
