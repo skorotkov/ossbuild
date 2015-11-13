@@ -980,9 +980,9 @@ again:
   g_object_set (G_OBJECT (udpsink1), "async", FALSE, NULL);
 
   g_object_set (G_OBJECT (udpsink0), "auto-multicast", FALSE, NULL);
-  g_object_set (G_OBJECT (udpsink0), "loop", FALSE, NULL);
+  g_object_set (G_OBJECT (udpsink0), "loop", TRUE, NULL);
   g_object_set (G_OBJECT (udpsink1), "auto-multicast", FALSE, NULL);
-  g_object_set (G_OBJECT (udpsink1), "loop", FALSE, NULL);
+  g_object_set (G_OBJECT (udpsink1), "loop", TRUE, NULL);
 
   /* we keep these elements, we configure all in configure_transport when the
    * server told us to really use the UDP ports. */
