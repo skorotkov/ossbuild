@@ -552,13 +552,10 @@ gst_matroska_demux_peek_bytes (GstMatroskaDemux * demux, guint64 offset,
   return GST_FLOW_OK;
 }
 
-static const guint8 *
-gst_matroska_demux_peek_pull (GstMatroskaDemux * demux, guint peek)
+static GstFlowReturn
+gst_matroska_demux_peek_pull (GstMatroskaDemux * demux, guint peek, guint8 **data)
 {
-  guint8 *data = NULL;
-
-  gst_matroska_demux_peek_bytes (demux, demux->offset, peek, NULL, &data);
-  return data;
+  return gst_matroska_demux_peek_bytes (demux, demux->offset, peek, NULL, data);
 }
 
 static GstFlowReturn

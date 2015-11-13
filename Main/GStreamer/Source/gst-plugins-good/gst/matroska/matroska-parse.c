@@ -476,13 +476,10 @@ gst_matroska_parse_peek_bytes (GstMatroskaParse * parse, guint64 offset,
   return GST_FLOW_OK;
 }
 
-static const guint8 *
-gst_matroska_parse_peek_pull (GstMatroskaParse * parse, guint peek)
+static GstFlowReturn
+gst_matroska_parse_peek_pull (GstMatroskaParse * parse, guint peek, guint8 **data)
 {
-  guint8 *data = NULL;
-
-  gst_matroska_parse_peek_bytes (parse, parse->offset, peek, NULL, &data);
-  return data;
+  return gst_matroska_parse_peek_bytes (parse, parse->offset, peek, NULL, data);
 }
 
 static GstFlowReturn
