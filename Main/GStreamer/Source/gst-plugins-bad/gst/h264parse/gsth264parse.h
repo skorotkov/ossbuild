@@ -140,6 +140,8 @@ struct _GstH264Parse
 
   GstEvent *pending_segment;
   GList *pending_events;
+
+  gboolean codec_data_created;
 };
 
 struct _GstH264ParseClass

@@ -1030,6 +1030,8 @@ gst_h264_parse_reset (GstH264Parse * h264parse)
   g_list_free (h264parse->pending_events);
   h264parse->pending_events = NULL;
 
+  h264parse->codec_data_created = FALSE;
+
   gst_caps_replace (&h264parse->src_caps, NULL);
 }
 
@@ -1362,8 +1364,10 @@ gst_h264_parse_update_src_caps (GstH264Parse * h264parse, GstCaps * caps)
         modified = TRUE;
       }
       gst_buffer_unref (buf);
+      h264parse->codec_data_created = TRUE;
     } else {
       GST_DEBUG_OBJECT (h264parse, "no codec_data yet");
+      h264parse->codec_data_created = FALSE;
     }
   } else if (h264parse->format == GST_H264_PARSE_FORMAT_BYTE) {
     /* need to remove the codec_data */
@@ -1371,6 +1375,7 @@ gst_h264_parse_update_src_caps (GstH264Parse * h264parse, GstCaps * caps)
       gst_structure_remove_field (structure, "codec_data");
       modified = TRUE;
     }
+    h264parse->codec_data_created = FALSE;
   }
 
   /* save as new caps, caps will be set when pushing data */
@@ -1623,7 +1628,8 @@ gst_h264_parse_push_buffer (GstH264Parse * h264parse, GstBuffer * buf)
     }
   }
 
-  if (G_UNLIKELY (h264parse->width == 0 || h264parse->height == 0)) {
+  if (G_UNLIKELY (h264parse->width == 0 || h264parse->height == 0 ||
+      (!h264parse->codec_data_created && h264parse->format == GST_H264_PARSE_FORMAT_SAMPLE))) {
     GST_DEBUG ("Delaying actual push until we are configured");
     h264parse->gather = g_list_append (h264parse->gather, buf);
     goto beach;
@@ -1860,6 +1866,10 @@ gst_h264_parse_push_nal (GstH264Parse * h264parse, GstBuffer * nal,
 
     gst_nal_bs_init (&bs, data + nal_length + 1, size - nal_length - 1);
     id = gst_nal_bs_read_ue (&bs);
+
+    GST_DEBUG_OBJECT (h264parse, "before storing PPS: !gst_nal_bs_eos (&bs) == %d", !gst_nal_bs_eos (&bs));
+    GST_DEBUG_OBJECT (h264parse, "before storing PPS: id < MAX_PPS_COUNT == %d", id < MAX_PPS_COUNT);
+    GST_DEBUG_OBJECT (h264parse, "before storing PPS: id == %d", id);
     if (!gst_nal_bs_eos (&bs) && id < MAX_PPS_COUNT) {
       GST_DEBUG_OBJECT (h264parse, "storing PPS id %d", id);
       gst_buffer_replace (&h264parse->pps_nals[id], NULL);
