@@ -136,6 +136,7 @@ gst_rtp_gst_pay_handle_buffer (GstBaseRTPPayload * basepayload,
   GstBuffer *outbuf;
   GstFlowReturn ret;
   GstClockTime timestamp;
+  GstClockTime duration;
   guint32 frag_offset;
   guint flags;
 
@@ -144,6 +145,7 @@ gst_rtp_gst_pay_handle_buffer (GstBaseRTPPayload * basepayload,
   size = GST_BUFFER_SIZE (buffer);
   data = GST_BUFFER_DATA (buffer);
   timestamp = GST_BUFFER_TIMESTAMP (buffer);
+  duration = GST_BUFFER_DURATION (buffer);
 
   ret = GST_FLOW_OK;
 
@@ -208,7 +210,7 @@ gst_rtp_gst_pay_handle_buffer (GstBaseRTPPayload * basepayload,
       gst_rtp_buffer_set_marker (outbuf, TRUE);
 
     GST_BUFFER_TIMESTAMP (outbuf) = timestamp;
-
+    GST_BUFFER_DURATION (outbuf) = duration; 
     ret = gst_basertppayload_push (basepayload, outbuf);
   }
   gst_buffer_unref (buffer);

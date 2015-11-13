@@ -184,6 +184,8 @@ gst_rtp_gst_depay_process (GstBaseRTPDepayload * depayload, GstBuffer * buf)
   gint payload_len;
   guint8 *payload;
   guint CV;
+  GstClockTime timestamp;
+  GstClockTime duration;
 
   rtpgstdepay = GST_RTP_GST_DEPAY (depayload);
 
@@ -196,6 +198,9 @@ gst_rtp_gst_depay_process (GstBaseRTPDepayload * depayload, GstBuffer * buf)
     GST_WARNING_OBJECT (rtpgstdepay, "DISCONT, clear adapter");
     gst_adapter_clear (rtpgstdepay->adapter);
   }
+
+  timestamp = GST_BUFFER_TIMESTAMP (buf);
+  duration = GST_BUFFER_DURATION (buf);
 
   payload = gst_rtp_buffer_get_payload (buf);
 
@@ -293,6 +298,8 @@ gst_rtp_gst_depay_process (GstBaseRTPDepayload * depayload, GstBuffer * buf)
         GST_BUFFER_FLAG_SET (outbuf, GST_BUFFER_FLAG_MEDIA2);
       if (payload[0] & 0x1)
         GST_BUFFER_FLAG_SET (outbuf, GST_BUFFER_FLAG_MEDIA3);
+      GST_BUFFER_TIMESTAMP (outbuf) = timestamp;
+      GST_BUFFER_DURATION (outbuf) = duration; 
     }
   }
   return outbuf;
