@@ -372,8 +372,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gstrtpmux", "Main\GStreamer
 		{AB87873B-2B88-4B1B-B627-F70DF4F91F10} = {AB87873B-2B88-4B1B-B627-F70DF4F91F10}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gstvalve", "Main\GStreamer\Windows\Build\Plugins\Bad\gst\valve.vcproj", "{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF0063}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gstphotography", "Main\GStreamer\Windows\Build\Libraries\libgstphotography.vcproj", "{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF2000}"
 	ProjectSection(ProjectDependencies) = postProject
 		{AB87873B-2B88-4B1B-B627-F70DF4F91F02} = {AB87873B-2B88-4B1B-B627-F70DF4F91F02}
@@ -580,12 +578,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gstflxdec", "Main\GStreamer
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fsselector", "Main\GStreamer\Windows\Build\Plugins\Farsight\gst\fsselector.vcproj", "{6D6E96B4-23EA-453E-9156-4F149871ACBB}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gstgamma", "Main\GStreamer\Windows\Build\Plugins\Good\gst\gamma.vcproj", "{AB87873B-2B88-4B1B-B627-F70DF4F92A34}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gstvideobalance", "Main\GStreamer\Windows\Build\Plugins\Good\gst\videobalance.vcproj", "{AB87873B-2B88-4B1B-B627-F70DF4F92A39}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gstvideoflip", "Main\GStreamer\Windows\Build\Plugins\Good\gst\videoflip.vcproj", "{AB87873B-2B88-4B1B-B627-F70DF4F92A40}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gstmms", "Main\GStreamer\Windows\Build\Plugins\Bad\ext\mms.vcproj", "{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF1018}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gsthdvparse", "Main\GStreamer\Windows\Build\Plugins\Bad\gst\hdvparse.vcproj", "{57A86DCF-B7C9-419B-AF1C-96F08D34DE85}"
@@ -645,8 +637,6 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gstgeometrictransform", "Main\GStreamer\Windows\Build\Plugins\Bad\gst\geometrictransform.vcproj", "{BBE23841-4387-4351-B747-B8DEF98CA700}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gnl", "Main\GStreamer\Windows\Build\Plugins\GNonLin\gnl\gnl.vcproj", "{4288EE5A-D59E-44AE-A1F6-001D58DD708A}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "_gst", "Main\GStreamer\Windows\Build\Bindings\Python\_gst2.7.vcproj", "{7CF83E29-C084-40FB-8E36-70A5E8BA0681}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "audio", "Main\GStreamer\Windows\Build\Bindings\Python\audio-2.7.vcproj", "{095A082F-8CE5-4459-B3CF-0C708684730D}"
 EndProject
@@ -1300,12 +1290,6 @@ Global
 		{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF0062}.Release (GPL)|Win32.Build.0 = Release|Win32
 		{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF0062}.Release (LGPL)|Win32.ActiveCfg = Release|Win32
 		{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF0062}.Release (LGPL)|Win32.Build.0 = Release|Win32
-		{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF0063}.Release (All)|Win32.ActiveCfg = Release|Win32
-		{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF0063}.Release (All)|Win32.Build.0 = Release|Win32
-		{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF0063}.Release (GPL)|Win32.ActiveCfg = Release|Win32
-		{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF0063}.Release (GPL)|Win32.Build.0 = Release|Win32
-		{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF0063}.Release (LGPL)|Win32.ActiveCfg = Release|Win32
-		{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF0063}.Release (LGPL)|Win32.Build.0 = Release|Win32
 		{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF2000}.Release (All)|Win32.ActiveCfg = Release|Win32
 		{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF2000}.Release (All)|Win32.Build.0 = Release|Win32
 		{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF2000}.Release (GPL)|Win32.ActiveCfg = Release|Win32
@@ -1763,24 +1747,6 @@ Global
 		{6D6E96B4-23EA-453E-9156-4F149871ACBB}.Release (GPL)|Win32.Build.0 = Release|Win32
 		{6D6E96B4-23EA-453E-9156-4F149871ACBB}.Release (LGPL)|Win32.ActiveCfg = Release|Win32
 		{6D6E96B4-23EA-453E-9156-4F149871ACBB}.Release (LGPL)|Win32.Build.0 = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A34}.Release (All)|Win32.ActiveCfg = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A34}.Release (All)|Win32.Build.0 = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A34}.Release (GPL)|Win32.ActiveCfg = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A34}.Release (GPL)|Win32.Build.0 = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A34}.Release (LGPL)|Win32.ActiveCfg = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A34}.Release (LGPL)|Win32.Build.0 = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A39}.Release (All)|Win32.ActiveCfg = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A39}.Release (All)|Win32.Build.0 = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A39}.Release (GPL)|Win32.ActiveCfg = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A39}.Release (GPL)|Win32.Build.0 = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A39}.Release (LGPL)|Win32.ActiveCfg = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A39}.Release (LGPL)|Win32.Build.0 = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A40}.Release (All)|Win32.ActiveCfg = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A40}.Release (All)|Win32.Build.0 = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A40}.Release (GPL)|Win32.ActiveCfg = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A40}.Release (GPL)|Win32.Build.0 = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A40}.Release (LGPL)|Win32.ActiveCfg = Release|Win32
-		{AB87873B-2B88-4B1B-B627-F70DF4F92A40}.Release (LGPL)|Win32.Build.0 = Release|Win32
 		{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF1018}.Release (All)|Win32.ActiveCfg = Release|Win32
 		{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF1018}.Release (All)|Win32.Build.0 = Release|Win32
 		{F3A7C701-0ACC-0BB0-CE27-AA0DFFFF1018}.Release (GPL)|Win32.ActiveCfg = Release|Win32
@@ -1961,12 +1927,6 @@ Global
 		{4288EE5A-D59E-44AE-A1F6-001D58DD708A}.Release (GPL)|Win32.Build.0 = Release|Win32
 		{4288EE5A-D59E-44AE-A1F6-001D58DD708A}.Release (LGPL)|Win32.ActiveCfg = Release|Win32
 		{4288EE5A-D59E-44AE-A1F6-001D58DD708A}.Release (LGPL)|Win32.Build.0 = Release|Win32
-		{7CF83E29-C084-40FB-8E36-70A5E8BA0681}.Release (All)|Win32.ActiveCfg = Release|Win32
-		{7CF83E29-C084-40FB-8E36-70A5E8BA0681}.Release (All)|Win32.Build.0 = Release|Win32
-		{7CF83E29-C084-40FB-8E36-70A5E8BA0681}.Release (GPL)|Win32.ActiveCfg = Release|Win32
-		{7CF83E29-C084-40FB-8E36-70A5E8BA0681}.Release (GPL)|Win32.Build.0 = Release|Win32
-		{7CF83E29-C084-40FB-8E36-70A5E8BA0681}.Release (LGPL)|Win32.ActiveCfg = Release|Win32
-		{7CF83E29-C084-40FB-8E36-70A5E8BA0681}.Release (LGPL)|Win32.Build.0 = Release|Win32
 		{095A082F-8CE5-4459-B3CF-0C708684730D}.Release (All)|Win32.ActiveCfg = Release|Win32
 		{095A082F-8CE5-4459-B3CF-0C708684730D}.Release (All)|Win32.Build.0 = Release|Win32
 		{095A082F-8CE5-4459-B3CF-0C708684730D}.Release (GPL)|Win32.ActiveCfg = Release|Win32
