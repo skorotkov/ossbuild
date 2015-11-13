@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="9.00"
+	Version="9,00"
 	Name="gstrtspserver"
 	ProjectGUID="{6A38D82F-1924-4691-8A87-05D865838C54}"
 	RootNamespace="libgstrtspserver"
@@ -415,6 +415,13 @@
 				<File
 					RelativePath="..\..\..\Source\gst-rtsp-server\gst\rtsp-server\rtsp-auth.h"
 					>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="Header Installer Tool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\..\..\Source\gst-rtsp-server\gst\rtsp-server\rtsp-client.h"
@@ -441,6 +448,13 @@
 				<File
 					RelativePath="..\..\..\Source\gst-rtsp-server\gst\rtsp-server\rtsp-media-factory-uri.h"
 					>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="Header Installer Tool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\..\..\Source\gst-rtsp-server\gst\rtsp-server\rtsp-media-factory.h"
