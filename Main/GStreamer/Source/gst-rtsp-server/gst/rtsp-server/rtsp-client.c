@@ -17,24 +17,34 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#define G_IO_WIN32_DEBUG
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-#include <sys/time.h>
 #include <sys/types.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <sys/socket.h>
-#include <sys/wait.h>
 #include <fcntl.h>
-#include <arpa/inet.h>
-#include <sys/ioctl.h>
 
 #include "rtsp-client.h"
 #include "rtsp-sdp.h"
 #include "rtsp-params.h"
+
+#ifndef G_OS_WIN32
+#include <sys/time.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <sys/socket.h>
+#include <sys/wait.h>
+#include <arpa/inet.h>
+#include <sys/ioctl.h>
+#else
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <wspiapi.h>
+#define socklen_t int
+#endif
 
 static GMutex *tunnels_lock;
 static GHashTable *tunnels;
@@ -1352,7 +1362,7 @@ handle_request (GstRTSPClient * client, GstRTSPMessage * request)
   state.session = session;
 
   if (client->auth) {
-    if (!gst_rtsp_auth_check (client->auth, client, &state))
+    if (!gst_rtsp_auth_check (client->auth, client, 0, &state))
       goto not_authorized;
   }
 

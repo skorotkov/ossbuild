@@ -17,23 +17,33 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#define G_IO_WIN32_DEBUG
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-#include <sys/time.h>
 #include <sys/types.h>
+#include <fcntl.h>
+
+#include "rtsp-server.h"
+#include "rtsp-client.h"
+
+#ifndef G_OS_WIN32
+#include <sys/time.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
-#include <fcntl.h>
 #include <arpa/inet.h>
 #include <sys/ioctl.h>
-
-#include "rtsp-server.h"
-#include "rtsp-client.h"
+#else
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <wspiapi.h>
+#define socklen_t int
+#endif
 
 #define DEFAULT_ADDRESS         "0.0.0.0"
 /* #define DEFAULT_ADDRESS         "::0" */
@@ -639,7 +649,14 @@ gst_rtsp_server_get_io_channel (GstRTSPServer * server)
 #endif
 
   /* set the server socket to nonblocking */
+#ifdef G_OS_WIN32
+  {
+	gulong flags = 1;
+	ioctlsocket(sockfd, FIONBIO, &flags);
+  }
+#else
   fcntl (sockfd, F_SETFL, O_NONBLOCK);
+#endif
 
   GST_DEBUG_OBJECT (server, "listening on server socket %d with queue of %d",
       sockfd, server->backlog);

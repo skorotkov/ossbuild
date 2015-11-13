@@ -413,6 +413,10 @@
 				Name="Public"
 				>
 				<File
+					RelativePath="..\..\..\Source\gst-rtsp-server\gst\rtsp-server\rtsp-auth.h"
+					>
+				</File>
+				<File
 					RelativePath="..\..\..\Source\gst-rtsp-server\gst\rtsp-server\rtsp-client.h"
 					>
 					<FileConfiguration
@@ -429,6 +433,14 @@
 							Name="Header Installer Tool"
 						/>
 					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\..\Source\gst-rtsp-server\gst\rtsp-server\rtsp-funnel.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\Source\gst-rtsp-server\gst\rtsp-server\rtsp-media-factory-uri.h"
+					>
 				</File>
 				<File
 					RelativePath="..\..\..\Source\gst-rtsp-server\gst\rtsp-server\rtsp-media-factory.h"
@@ -580,7 +592,19 @@
 			Name="Source Files"
 			>
 			<File
+				RelativePath="..\..\..\Source\gst-rtsp-server\gst\rtsp-server\rtsp-auth.c"
+				>
+			</File>
+			<File
 				RelativePath="..\..\..\Source\gst-rtsp-server\gst\rtsp-server\rtsp-client.c"
+				>
+			</File>
+			<File
+				RelativePath="..\..\..\Source\gst-rtsp-server\gst\rtsp-server\rtsp-funnel.c"
+				>
+			</File>
+			<File
+				RelativePath="..\..\..\Source\gst-rtsp-server\gst\rtsp-server\rtsp-media-factory-uri.c"
 				>
 			</File>
 			<File

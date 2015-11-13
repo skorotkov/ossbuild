@@ -20,6 +20,9 @@
 #include <gst/gst.h>
 
 #include <gst/rtsp-server/rtsp-server.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#endif
 
 int
 main (int argc, char *argv[])
@@ -28,6 +31,10 @@ main (int argc, char *argv[])
   GstRTSPServer *server;
   GstRTSPMediaMapping *mapping;
   GstRTSPMediaFactory *factory;
+#ifdef _WIN32
+  WSADATA wsadata;
+  WSAStartup( MAKEWORD(2,2), &wsadata );
+#endif
 
   gst_init (&argc, &argv);
 

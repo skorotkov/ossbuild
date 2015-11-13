@@ -29,10 +29,12 @@
  * Takes packets from various input sinks into one output source
  */
 
+#ifndef _WIN32
 #ifdef HAVE_CONFIG_H
 #  include "config.h"
 #endif
 
+#endif
 #include "rtsp-funnel.h"
 
 GST_DEBUG_CATEGORY_STATIC (rtsp_funnel_debug);
