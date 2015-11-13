@@ -1,20 +1,20 @@
-AC_PREREQ(2.52)
-
+AC_PREREQ(2.60)
 dnl initialize autoconf
 dnl when going to/from release please set the nano (fourth number) right !
 dnl releases only do Wall, cvs and prerelease does Werror too
-AC_INIT(Gst-RTSP, 0.10.5.1,
-    http://gstreamer.net/,
+AC_INIT(Gst-RTSP, 0.10.8.1,
+    http://bugzilla.gnome.org/enter_bug.cgi?product=GStreamer,
     gst-rtsp)
+AG_GST_INIT
 
 dnl initialize automake
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE([-Wno-portability 1.10])
 
 dnl define PACKAGE_VERSION_* variables
 AS_VERSION
 
 dnl check if this is a release version
-AS_NANO(GST_CVS="no", GST_CVS="yes")
+AS_NANO(GST_GIT="no", GST_GIT="yes")
 
 dnl can autoconf find the source ?
 AC_CONFIG_SRCDIR([gst/rtsp-server/rtsp-server.c])
@@ -28,6 +28,11 @@ AM_MAINTAINER_MODE
 dnl sets host_* variables
 AC_CANONICAL_HOST
 
+dnl use pretty build output with automake >= 1.11
+m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])],
+  [AM_DEFAULT_VERBOSITY=1
+   AC_SUBST(AM_DEFAULT_VERBOSITY)])
+
 dnl our libraries and install dirs use major.minor as a version
 GST_MAJORMINOR=$PACKAGE_VERSION_MAJOR.$PACKAGE_VERSION_MINOR
 dnl we override it here if we need to for the release candidate of new series
@@ -37,8 +42,8 @@ AC_SUBST(GST_MAJORMINOR)
 AM_PROG_LIBTOOL
 
 dnl *** required versions of GStreamer stuff ***
-GST_REQ=0.10.29
-GSTPB_REQ=0.10.29
+GST_REQ=0.10.31
+GSTPB_REQ=0.10.31
 
 dnl *** autotools stuff ****
 
@@ -47,6 +52,13 @@ AS_AUTOTOOLS_ALTERNATE
 
 dnl Add parameters for aclocal
 AC_SUBST(ACLOCAL_AMFLAGS, "-I m4 -I common/m4")
+AC_CONFIG_MACRO_DIR([m4])
+
+dnl set up gettext
+dnl the version check needs to stay here because autopoint greps for it
+AM_GNU_GETTEXT_VERSION([0.17])
+AM_GNU_GETTEXT([external])
+AG_GST_GETTEXT([gstreamer-$GST_MAJORMINOR])
 
 dnl *** check for arguments to configure ***
 
@@ -55,6 +67,8 @@ AG_GST_ARG_VALGRIND
 AG_GST_ARG_GCOV
 AG_GST_ARG_WITH_PACKAGE_NAME
 AG_GST_ARG_WITH_PACKAGE_ORIGIN
+
+AG_GST_PKG_CONFIG_PATH
 
 dnl *** checks for platform ***
 
@@ -66,44 +80,55 @@ dnl find a compiler
 AC_PROG_CC
 AM_PROG_CC_C_O
 
-dnl check for python
-AM_PATH_PYTHON(2.3)
-AM_CHECK_PYTHON_HEADERS([HAVE_PYTHON_HEADERS="yes"], [HAVE_PYTHON_HEADERS="no"])
-
 AC_PATH_PROG(VALGRIND_PATH, valgrind, no)
 AM_CONDITIONAL(HAVE_VALGRIND, test ! "x$VALGRIND_PATH" = "xno")
+
+dnl check for gobject-introspection
+GOBJECT_INTROSPECTION_CHECK([0.6.3])
 
 dnl check for documentation tools
 AG_GST_DOCBOOK_CHECK
 GTK_DOC_CHECK([1.3])
 
-AC_SUBST(PYGOBJECT_REQ, 2.11.2)
+dnl check for python
+AM_PATH_PYTHON
+AC_MSG_CHECKING(for python >= 2.3)
+prog="
+import sys, string
+minver = (2,3,0,'final',0)
+if sys.version_info < minver:
+  sys.exit(1)
+sys.exit(0)"
+
+if $PYTHON -c "$prog" 1>&AC_FD_CC 2>&AC_FD_CC
+then
+  HAVE_PYTHON=yes
+  AC_MSG_RESULT(okay)
+else
+  HAVE_PYTHON=no
+  AC_MSG_RESULT(no python)
+fi
+
+AM_CHECK_PYTHON_HEADERS([HAVE_PYTHON_HEADERS=yes],[HAVE_PYTHON_HEADERS=no])
 
 dnl check for pygobject (optional, used in the bindings)
+PYGOBJECT_REQ=2.11.2
 PKG_CHECK_MODULES(PYGOBJECT, pygobject-2.0 >= $PYGOBJECT_REQ,
-  [
-    HAVE_PYGOBJECT="yes"
-  ],
-  [
-    HAVE_PYGOBJECT="no"
-  ])
+  [HAVE_PYGOBJECT="yes"], [HAVE_PYGOBJECT="no"])
 AC_SUBST(PYGOBJECT_CFLAGS)
 
 dnl check for gst-python
 PKG_CHECK_MODULES(PYGST, gst-python-0.10,
-  [
-    HAVE_PYGST="yes"
-  ],
-  [
-    HAVE_PYGST="no"
-  ])
+  [HAVE_PYGST="yes"], [HAVE_PYGST="no"])
 
 if test "x$HAVE_PYGST" = "xyes"; then
   PYGST_DEFSDIR=`pkg-config gst-python-0.10 --variable=defsdir`
 fi
 AC_SUBST(PYGST_DEFSDIR, $PYGST_DEFSDIR)
 
-if test "x$HAVE_PYTHON_HEADERS" = "xyes" -a \
+if test \
+    "x$HAVE_PYTHON" = "xyes" -a \
+    "x$HAVE_PYTHON_HEADERS" = "xyes" -a \
     "x$HAVE_PYGOBJECT" = "xyes" -a \
     "x$HAVE_PYGST" = "xyes"; then
   HAVE_PYTHON_BINDINGS="yes"
@@ -113,23 +138,18 @@ fi
 
 AM_CONDITIONAL(WITH_PYTHON, [test "x$HAVE_PYTHON_BINDINGS" = "xyes"])
 
-dnl Check for vala
-PKG_CHECK_EXISTS([vala-1.0], [HAVE_VALA="yes"], [HAVE_VALA="no"])
+dnl Check for Vala
+AC_ARG_ENABLE([vala],
+  AC_HELP_STRING([--enable-vala],[enable Vala bindings (default=yes)]),
+  [case "${enableval}" in
+    yes) enable_vala=yes ;;
+    no)  enable_vala=no ;;
+    *) AC_MSG_ERROR(bad value ${enableval} for --enable-vala) ;;
+   esac
+  ],
+  [enable_vala=yes]) dnl Default value
+AM_CONDITIONAL(WITH_VALA, [test "x$enable_vala" = "xyes"])
 
-AM_CONDITIONAL(WITH_VALA, [test "x$HAVE_VALA" = "xyes"])
-
-AC_ARG_WITH([vapidir],
-  AS_HELP_STRING([--with-vapidir], [Define where to install the VAPI files]))
-	
-if test "x$HAVE_VALA" = "xyes"; then
-  if test "x$with_vapidir" = "x"; then
-  	VAPIDIR="`pkg-config --variable vapidir vala-1.0`" 
-  else
-    VAPIDIR="$with_vapidir"
-  fi
-fi
-AC_SUBST(VAPIDIR)
-	
 dnl *** checks for libraries ***
 
 dnl *** checks for header files ***
@@ -188,10 +208,10 @@ dnl set location of plugin directory
 AG_GST_SET_PLUGINDIR
 
 dnl define an ERROR_CFLAGS Makefile variable
-AG_GST_SET_ERROR_CFLAGS($GST_CVS)
+AG_GST_SET_ERROR_CFLAGS($GST_GIT)
 
 dnl define correct level for debugging messages
-AG_GST_SET_LEVEL_DEFAULT($GST_CVS)
+AG_GST_SET_LEVEL_DEFAULT($GST_GIT)
 
 dnl used in examples
 AG_GST_DEFAULT_ELEMENTS
@@ -263,10 +283,10 @@ Makefile
 gst-rtsp.spec
 common/Makefile
 common/m4/Makefile
-m4/Makefile
 gst/Makefile
 gst/rtsp-server/Makefile
 examples/Makefile
+tests/Makefile
 bindings/Makefile
 bindings/python/Makefile
 bindings/python/codegen/Makefile
@@ -274,6 +294,9 @@ bindings/vala/Makefile
 pkgconfig/Makefile
 pkgconfig/gst-rtsp-server.pc
 pkgconfig/gst-rtsp-server-uninstalled.pc
+docs/Makefile
+docs/version.entities
+docs/libs/Makefile
 ])
 AC_OUTPUT
 
@@ -284,7 +307,7 @@ Configuration
 	Source code location       : ${srcdir}
 	Prefix                     : ${prefix}
 	Compiler                   : ${CC}
-	Vala bindings              : ${HAVE_VALA}
+	Vala bindings              : ${enable_vala}
 	Python bindings:           : ${HAVE_PYTHON_BINDINGS}
 
 Gst-rtsp-server configured. Type 'make' to build.

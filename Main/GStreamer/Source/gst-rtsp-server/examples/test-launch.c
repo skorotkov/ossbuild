@@ -33,8 +33,8 @@ main (int argc, char *argv[])
 
   if (argc < 2) {
     g_print ("usage: %s <launch line> \n"
-	"example: %s \"( videotestsrc ! x264enc ! rtph264pay name=pay0 pt=96 )\"\n",
-	argv[0], argv[0]);
+        "example: %s \"( videotestsrc ! x264enc ! rtph264pay name=pay0 pt=96 )\"\n",
+        argv[0], argv[0]);
     return -1;
   }
 
@@ -64,6 +64,7 @@ main (int argc, char *argv[])
   gst_rtsp_server_attach (server, NULL);
 
   /* start serving */
+  g_print ("stream ready at rtsp://127.0.0.1:8554/test\n");
   g_main_loop_run (loop);
 
   return 0;

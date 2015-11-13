@@ -22,7 +22,7 @@
 
 /**
  * gst_rtsp_sdp_from_media:
- * @sdp: a #GstSDPessage
+ * @sdp: a #GstSDPMessage
  * @info: info
  * @media: a #GstRTSPMedia
  *
@@ -32,7 +32,8 @@
  * Returns: TRUE on success.
  */
 gboolean
-gst_rtsp_sdp_from_media (GstSDPMessage *sdp, GstSDPInfo *info, GstRTSPMedia * media)
+gst_rtsp_sdp_from_media (GstSDPMessage * sdp, GstSDPInfo * info,
+    GstRTSPMedia * media)
 {
   guint i, n_streams;
   gchar *rangestr;
@@ -42,7 +43,7 @@ gst_rtsp_sdp_from_media (GstSDPMessage *sdp, GstSDPInfo *info, GstRTSPMedia * me
 
   n_streams = gst_rtsp_media_n_streams (media);
 
-  rangestr = gst_rtsp_range_to_string (&media->range);
+  rangestr = gst_rtsp_media_get_range_string (media, FALSE);
   gst_sdp_message_add_attribute (sdp, "range", rangestr);
   g_free (rangestr);
 
@@ -85,7 +86,8 @@ gst_rtsp_sdp_from_media (GstSDPMessage *sdp, GstSDPInfo *info, GstRTSPMedia * me
     gst_sdp_media_set_proto (smedia, "RTP/AVP");
 
     /* for the c= line */
-    gst_sdp_media_add_connection (smedia, "IN", info->server_proto, info->server_ip, 16, 0);
+    gst_sdp_media_add_connection (smedia, "IN", info->server_proto,
+        info->server_ip, 16, 0);
 
     /* get clock-rate, media type and params for the rtpmap attribute */
     gst_structure_get_int (s, "clock-rate", &caps_rate);

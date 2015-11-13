@@ -3,10 +3,8 @@
 # vi:si:et:sw=4:sts=4:ts=4
 
 """
-parse, update and write .signals and .args files
+parse, merge and write gstdoc-scanobj files
 """
-
-from twisted.python import util
 
 import sys
 import os
@@ -14,10 +12,64 @@ import os
 def debug(*args):
     pass
 
+# OrderedDict class based on
+# http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/107747
+# Licensed under the Python License
+class OrderedDict(dict):
+    def __init__(self):
+        self._keys = []
+        dict.__init__(self)
+
+    def __delitem__(self, key):
+        dict.__delitem__(self, key)
+        self._keys.remove(key)
+
+    def __setitem__(self, key, item):
+        dict.__setitem__(self, key, item)
+        if key not in self._keys: self._keys.append(key)
+
+    def clear(self):
+        dict.clear(self)
+        self._keys = []
+
+    def copy(self):
+        dict = dict.copy(self)
+        dict._keys = self._keys[:]
+        return dict
+
+    def items(self):
+        return zip(self._keys, self.values())
+
+    def keys(self):
+        return self._keys
+
+    def popitem(self):
+        try:
+            key = self._keys[-1]
+        except IndexError:
+            raise KeyError('dictionary is empty')
+
+        val = self[key]
+        del self[key]
+
+        return (key, val)
+
+    def setdefault(self, key, failobj = None):
+        dict.setdefault(self, key, failobj)
+        if key not in self._keys: self._keys.append(key)
+
+    def update(self, dict):
+        dict.update(self, dict)
+        for key in dict.keys():
+            if key not in self._keys: self._keys.append(key)
+
+    def values(self):
+        return map(self.get, self._keys)
+
 class Object:
     def __init__(self, name):
-        self._signals = util.OrderedDict()
-        self._args = util.OrderedDict()
+        self._signals = OrderedDict()
+        self._args = OrderedDict()
         self.name = name
 
     def __repr__(self):
@@ -32,7 +84,7 @@ class Object:
         if not overwrite and self._args.has_key(arg.name):
             raise IndexError, "arg %s already in %r" % (arg.name, self)
         self._args[arg.name] = arg
-        
+
 class Docable:
     def __init__(self, **kwargs):
         for key in self.attrs:
@@ -58,8 +110,7 @@ class GDoc:
 
     def save_file(self, filename, backup=False):
         """
-        Save the signals information to the given .signals file if the
-        file content changed.
+        Save the information to the given file if the file content changed.
         """
         olddata = None
         try:
@@ -81,7 +132,7 @@ class GDoc:
 
 class Signals(GDoc):
     def __init__(self):
-        self._objects = util.OrderedDict()
+        self._objects = OrderedDict()
 
     def load_data(self, data):
         """
@@ -138,7 +189,7 @@ class Signals(GDoc):
 
 class Args(GDoc):
     def __init__(self):
-        self._objects = util.OrderedDict()
+        self._objects = OrderedDict()
 
     def load_data(self, data):
         """
@@ -204,23 +255,55 @@ class Args(GDoc):
 
         return "\n".join(lines) + '\n'
 
+class SingleLine(GDoc):
+    def __init__(self):
+        self._objects = []
+
+    def load_data(self, data):
+        """
+        Load the .interfaces/.prerequisites lines, merge duplicates
+        """
+        # split data on '\n'
+        lines = data.splitlines();
+        # merge them into self._objects
+        for line in lines:
+            if line not in self._objects:
+                self._objects.append(line)
+
+    def get_data(self):
+        lines = sorted(self._objects)
+        return "\n".join(lines) + '\n'
+
 def main(argv):
     modulename = None
     try:
         modulename = argv[1]
     except IndexError:
-        sys.stderr.write('Pleae provide a documentation module name\n')
+        sys.stderr.write('Please provide a documentation module name\n')
         sys.exit(1)
 
-    print "Merging scangobj output for %s" % modulename
     signals = Signals()
     signals.load_file(modulename + '.signals')
     signals.load_file(modulename + '.signals.new')
     signals.save_file(modulename + '.signals', backup=True)
+    os.unlink(modulename + '.signals.new')
 
     args = Args()
     args.load_file(modulename + '.args')
     args.load_file(modulename + '.args.new')
     args.save_file(modulename + '.args', backup=True)
+    os.unlink(modulename + '.args.new')
+
+    ifaces = SingleLine()
+    ifaces.load_file(modulename + '.interfaces')
+    ifaces.load_file(modulename + '.interfaces.new')
+    ifaces.save_file(modulename + '.interfaces', backup=True)
+    os.unlink(modulename + '.interfaces.new')
+
+    prereq = SingleLine()
+    prereq.load_file(modulename + '.prerequisites')
+    prereq.load_file(modulename + '.prerequisites.new')
+    prereq.save_file(modulename + '.prerequisites', backup=True)
+    os.unlink(modulename + '.prerequisites.new')
 
 main(sys.argv)

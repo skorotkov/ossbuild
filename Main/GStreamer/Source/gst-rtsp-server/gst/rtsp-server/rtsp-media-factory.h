@@ -21,6 +21,7 @@
 #include <gst/rtsp/gstrtspurl.h>
 
 #include "rtsp-media.h"
+#include "rtsp-auth.h"
 
 #ifndef __GST_RTSP_MEDIA_FACTORY_H__
 #define __GST_RTSP_MEDIA_FACTORY_H__
@@ -40,26 +41,40 @@ G_BEGIN_DECLS
 typedef struct _GstRTSPMediaFactory GstRTSPMediaFactory;
 typedef struct _GstRTSPMediaFactoryClass GstRTSPMediaFactoryClass;
 
+#define GST_RTSP_MEDIA_FACTORY_GET_LOCK(f)       (GST_RTSP_MEDIA_FACTORY_CAST(f)->lock)
+#define GST_RTSP_MEDIA_FACTORY_LOCK(f)           (g_mutex_lock(GST_RTSP_MEDIA_FACTORY_GET_LOCK(f)))
+#define GST_RTSP_MEDIA_FACTORY_UNLOCK(f)         (g_mutex_unlock(GST_RTSP_MEDIA_FACTORY_GET_LOCK(f)))
+
 /**
  * GstRTSPMediaFactory:
  * @lock: mutex protecting the datastructure.
  * @launch: the launch description
  * @shared: if media from this factory can be shared between clients
- * @media_lock: mutex protecting the medias.
- * @media: hashtable of shared media
+ * @eos_shutdown: if shutdown should first send EOS to the pipeline
+ * @protocols: allowed transport protocols
+ * @auth: the authentication manager
+ * @buffer_size: the kernel udp buffer size
+ * @multicast_group: the multicast group to send to
+ * @medias_lock: mutex protecting the medias.
+ * @medias: hashtable of shared media
  *
  * The definition and logic for constructing the pipeline for a media. The media
  * can contain multiple streams like audio and video.
  */
 struct _GstRTSPMediaFactory {
-  GObject       parent;
+  GObject           parent;
 
-  GMutex       *lock;
-  gchar        *launch;
-  gboolean      shared;
+  GMutex            *lock;
+  gchar             *launch;
+  gboolean           shared;
+  gboolean           eos_shutdown;
+  GstRTSPLowerTrans  protocols;
+  GstRTSPAuth       *auth;
+  guint              buffer_size;
+  gchar             *multicast_group;
 
-  GMutex       *medias_lock;
-  GHashTable   *medias;
+  GMutex            *medias_lock;
+  GHashTable        *medias;
 };
 
 /**
@@ -79,18 +94,24 @@ struct _GstRTSPMediaFactory {
  *       implementation will configure the 'shared' property of the media.
  * @create_pipeline: create a new pipeline or re-use an existing one and
  *       add the #GstRTSPMedia's element created by @construct to the pipeline.
+ * @media_constructed: signal emited when a media was cunstructed
+ * @media_configure: signal emited when a media should be configured
  *
  * The #GstRTSPMediaFactory class structure.
  */
 struct _GstRTSPMediaFactoryClass {
   GObjectClass  parent_class;
 
-  gchar *           (*gen_key)        (GstRTSPMediaFactory *factory, const GstRTSPUrl *url);
+  gchar *         (*gen_key)            (GstRTSPMediaFactory *factory, const GstRTSPUrl *url);
 
-  GstElement *      (*get_element)    (GstRTSPMediaFactory *factory, const GstRTSPUrl *url);
-  GstRTSPMedia *    (*construct)      (GstRTSPMediaFactory *factory, const GstRTSPUrl *url);
-  void              (*configure)      (GstRTSPMediaFactory *factory, GstRTSPMedia *media);
-  GstElement *      (*create_pipeline)(GstRTSPMediaFactory *factory, GstRTSPMedia *media);
+  GstElement *    (*get_element)        (GstRTSPMediaFactory *factory, const GstRTSPUrl *url);
+  GstRTSPMedia *  (*construct)          (GstRTSPMediaFactory *factory, const GstRTSPUrl *url);
+  void            (*configure)          (GstRTSPMediaFactory *factory, GstRTSPMedia *media);
+  GstElement *    (*create_pipeline)    (GstRTSPMediaFactory *factory, GstRTSPMedia *media);
+
+  /* signals */
+  void            (*media_constructed)  (GstRTSPMediaFactory *factory, GstRTSPMedia *media);
+  void            (*media_configure)    (GstRTSPMediaFactory *factory, GstRTSPMedia *media);
 };
 
 GType                 gst_rtsp_media_factory_get_type     (void);
@@ -106,6 +127,22 @@ gchar *               gst_rtsp_media_factory_get_launch   (GstRTSPMediaFactory *
 void                  gst_rtsp_media_factory_set_shared   (GstRTSPMediaFactory *factory,
                                                            gboolean shared);
 gboolean              gst_rtsp_media_factory_is_shared    (GstRTSPMediaFactory *factory);
+
+void                  gst_rtsp_media_factory_set_eos_shutdown   (GstRTSPMediaFactory *factory,
+                                                                 gboolean eos_shutdown);
+gboolean              gst_rtsp_media_factory_is_eos_shutdown    (GstRTSPMediaFactory *factory);
+
+void                  gst_rtsp_media_factory_set_protocols  (GstRTSPMediaFactory *factory, GstRTSPLowerTrans protocols);
+GstRTSPLowerTrans     gst_rtsp_media_factory_get_protocols  (GstRTSPMediaFactory *factory);
+
+void                  gst_rtsp_media_factory_set_auth     (GstRTSPMediaFactory *factory, GstRTSPAuth *auth);
+GstRTSPAuth *         gst_rtsp_media_factory_get_auth     (GstRTSPMediaFactory *factory);
+
+void                  gst_rtsp_media_factory_set_buffer_size    (GstRTSPMediaFactory * factory, guint size);
+guint                 gst_rtsp_media_factory_get_buffer_size    (GstRTSPMediaFactory * factory);
+
+void                  gst_rtsp_media_factory_set_multicast_group (GstRTSPMediaFactory * factory, const gchar *mc);
+gchar *               gst_rtsp_media_factory_get_multicast_group (GstRTSPMediaFactory * factory);
 
 /* creating the media from the factory and a url */
 GstRTSPMedia *        gst_rtsp_media_factory_construct    (GstRTSPMediaFactory *factory,

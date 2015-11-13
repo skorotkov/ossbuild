@@ -23,12 +23,16 @@
 #include <gst/app/gstappsrc.h>
 #include <gst/app/gstappsink.h>
 
+#include "rtsp-funnel.h"
 #include "rtsp-media.h"
 
-#define DEFAULT_SHARED         FALSE
-#define DEFAULT_REUSABLE       FALSE
-#define DEFAULT_PROTOCOLS      GST_RTSP_LOWER_TRANS_UDP | GST_RTSP_LOWER_TRANS_TCP
+#define DEFAULT_SHARED          FALSE
+#define DEFAULT_REUSABLE        FALSE
+#define DEFAULT_PROTOCOLS       GST_RTSP_LOWER_TRANS_UDP | GST_RTSP_LOWER_TRANS_TCP
 //#define DEFAULT_PROTOCOLS      GST_RTSP_LOWER_TRANS_UDP_MCAST
+#define DEFAULT_EOS_SHUTDOWN    FALSE
+#define DEFAULT_BUFFER_SIZE     0x80000
+#define DEFAULT_MULTICAST_GROUP "224.2.0.1"
 
 /* define to dump received RTCP packets */
 #undef DUMP_STATS
@@ -39,16 +43,21 @@ enum
   PROP_SHARED,
   PROP_REUSABLE,
   PROP_PROTOCOLS,
+  PROP_EOS_SHUTDOWN,
+  PROP_BUFFER_SIZE,
+  PROP_MULTICAST_GROUP,
   PROP_LAST
 };
 
 enum
 {
+  SIGNAL_PREPARED,
   SIGNAL_UNPREPARED,
+  SIGNAL_NEW_STATE,
   SIGNAL_LAST
 };
 
-GST_DEBUG_CATEGORY_EXTERN (rtsp_media_debug);
+GST_DEBUG_CATEGORY_STATIC (rtsp_media_debug);
 #define GST_CAT_DEFAULT rtsp_media_debug
 
 static GQuark ssrc_stream_map_key;
@@ -96,13 +105,40 @@ gst_rtsp_media_class_init (GstRTSPMediaClass * klass)
           "Allowed lower transport protocols", GST_TYPE_RTSP_LOWER_TRANS,
           DEFAULT_PROTOCOLS, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_EOS_SHUTDOWN,
+      g_param_spec_boolean ("eos-shutdown", "EOS Shutdown",
+          "Send an EOS event to the pipeline before unpreparing",
+          DEFAULT_EOS_SHUTDOWN, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_BUFFER_SIZE,
+      g_param_spec_uint ("buffer-size", "Buffer Size",
+          "The kernel UDP buffer size to use", 0, G_MAXUINT,
+          DEFAULT_BUFFER_SIZE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_MULTICAST_GROUP,
+      g_param_spec_string ("multicast-group", "Multicast Group",
+          "The Multicast group to send media to",
+          DEFAULT_MULTICAST_GROUP, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  gst_rtsp_media_signals[SIGNAL_PREPARED] =
+      g_signal_new ("prepared", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
+      G_STRUCT_OFFSET (GstRTSPMediaClass, prepared), NULL, NULL,
+      g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0, G_TYPE_NONE);
+
   gst_rtsp_media_signals[SIGNAL_UNPREPARED] =
       g_signal_new ("unprepared", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
       G_STRUCT_OFFSET (GstRTSPMediaClass, unprepared), NULL, NULL,
       g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0, G_TYPE_NONE);
 
+  gst_rtsp_media_signals[SIGNAL_NEW_STATE] =
+      g_signal_new ("new-state", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
+      G_STRUCT_OFFSET (GstRTSPMediaClass, new_state), NULL, NULL,
+      g_cclosure_marshal_VOID__INT, G_TYPE_NONE, 0, G_TYPE_INT);
+
   klass->context = g_main_context_new ();
   klass->loop = g_main_loop_new (klass->context, TRUE);
+
+  GST_DEBUG_CATEGORY_INIT (rtsp_media_debug, "rtspmedia", 0, "GstRTSPMedia");
 
   klass->thread = g_thread_create ((GThreadFunc) do_loop, klass, TRUE, &error);
   if (error != NULL) {
@@ -112,6 +148,9 @@ gst_rtsp_media_class_init (GstRTSPMediaClass * klass)
   klass->unprepare = default_unprepare;
 
   ssrc_stream_map_key = g_quark_from_static_string ("GstRTSPServer.stream");
+
+  gst_element_register (NULL, "rtspfunnel", GST_RANK_NONE, RTSP_TYPE_FUNNEL);
+
 }
 
 static void
@@ -124,6 +163,22 @@ gst_rtsp_media_init (GstRTSPMedia * media)
   media->shared = DEFAULT_SHARED;
   media->reusable = DEFAULT_REUSABLE;
   media->protocols = DEFAULT_PROTOCOLS;
+  media->eos_shutdown = DEFAULT_EOS_SHUTDOWN;
+  media->buffer_size = DEFAULT_BUFFER_SIZE;
+  media->multicast_group = g_strdup (DEFAULT_MULTICAST_GROUP);
+}
+
+void
+gst_rtsp_media_trans_cleanup (GstRTSPMediaTrans * trans)
+{
+  if (trans->transport) {
+    gst_rtsp_transport_free (trans->transport);
+    trans->transport = NULL;
+  }
+  if (trans->rtpsource) {
+    g_object_set_qdata (trans->rtpsource, ssrc_stream_map_key, NULL);
+    trans->rtpsource = NULL;
+  }
 }
 
 static void
@@ -183,6 +238,7 @@ gst_rtsp_media_finalize (GObject * obj)
     g_source_destroy (media->source);
     g_source_unref (media->source);
   }
+  g_free (media->multicast_group);
   g_mutex_free (media->lock);
   g_cond_free (media->cond);
 
@@ -205,6 +261,15 @@ gst_rtsp_media_get_property (GObject * object, guint propid,
     case PROP_PROTOCOLS:
       g_value_set_flags (value, gst_rtsp_media_get_protocols (media));
       break;
+    case PROP_EOS_SHUTDOWN:
+      g_value_set_boolean (value, gst_rtsp_media_is_eos_shutdown (media));
+      break;
+    case PROP_BUFFER_SIZE:
+      g_value_set_uint (value, gst_rtsp_media_get_buffer_size (media));
+      break;
+    case PROP_MULTICAST_GROUP:
+      g_value_take_string (value, gst_rtsp_media_get_multicast_group (media));
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, propid, pspec);
   }
@@ -225,6 +290,15 @@ gst_rtsp_media_set_property (GObject * object, guint propid,
       break;
     case PROP_PROTOCOLS:
       gst_rtsp_media_set_protocols (media, g_value_get_flags (value));
+      break;
+    case PROP_EOS_SHUTDOWN:
+      gst_rtsp_media_set_eos_shutdown (media, g_value_get_boolean (value));
+      break;
+    case PROP_BUFFER_SIZE:
+      gst_rtsp_media_set_buffer_size (media, g_value_get_uint (value));
+      break;
+    case PROP_MULTICAST_GROUP:
+      gst_rtsp_media_set_multicast_group (media, g_value_get_string (value));
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, propid, pspec);
@@ -399,10 +473,163 @@ gst_rtsp_media_set_protocols (GstRTSPMedia * media, GstRTSPLowerTrans protocols)
 GstRTSPLowerTrans
 gst_rtsp_media_get_protocols (GstRTSPMedia * media)
 {
-  g_return_val_if_fail (GST_IS_RTSP_MEDIA (media), GST_RTSP_LOWER_TRANS_UNKNOWN);
+  g_return_val_if_fail (GST_IS_RTSP_MEDIA (media),
+      GST_RTSP_LOWER_TRANS_UNKNOWN);
 
   return media->protocols;
 }
+
+/**
+ * gst_rtsp_media_set_eos_shutdown:
+ * @media: a #GstRTSPMedia
+ * @eos_shutdown: the new value
+ *
+ * Set or unset if an EOS event will be sent to the pipeline for @media before
+ * it is unprepared.
+ */
+void
+gst_rtsp_media_set_eos_shutdown (GstRTSPMedia * media, gboolean eos_shutdown)
+{
+  g_return_if_fail (GST_IS_RTSP_MEDIA (media));
+
+  media->eos_shutdown = eos_shutdown;
+}
+
+/**
+ * gst_rtsp_media_is_eos_shutdown:
+ * @media: a #GstRTSPMedia
+ *
+ * Check if the pipeline for @media will send an EOS down the pipeline before
+ * unpreparing.
+ *
+ * Returns: %TRUE if the media will send EOS before unpreparing.
+ */
+gboolean
+gst_rtsp_media_is_eos_shutdown (GstRTSPMedia * media)
+{
+  g_return_val_if_fail (GST_IS_RTSP_MEDIA (media), FALSE);
+
+  return media->eos_shutdown;
+}
+
+/**
+ * gst_rtsp_media_set_buffer_size:
+ * @media: a #GstRTSPMedia
+ * @size: the new value
+ *
+ * Set the kernel UDP buffer size.
+ */
+void
+gst_rtsp_media_set_buffer_size (GstRTSPMedia * media, guint size)
+{
+  g_return_if_fail (GST_IS_RTSP_MEDIA (media));
+
+  media->buffer_size = size;
+}
+
+/**
+ * gst_rtsp_media_get_buffer_size:
+ * @media: a #GstRTSPMedia
+ *
+ * Get the kernel UDP buffer size.
+ *
+ * Returns: the kernel UDP buffer size.
+ */
+guint
+gst_rtsp_media_get_buffer_size (GstRTSPMedia * media)
+{
+  g_return_val_if_fail (GST_IS_RTSP_MEDIA (media), FALSE);
+
+  return media->buffer_size;
+}
+
+/**
+ * gst_rtsp_media_set_multicast_group:
+ * @media: a #GstRTSPMedia
+ * @mc: the new multicast group
+ *
+ * Set the multicast group that media from @media will be streamed to.
+ */
+void
+gst_rtsp_media_set_multicast_group (GstRTSPMedia * media, const gchar * mc)
+{
+  g_return_if_fail (GST_IS_RTSP_MEDIA (media));
+
+  g_mutex_lock (media->lock);
+  g_free (media->multicast_group);
+  media->multicast_group = g_strdup (mc);
+  g_mutex_unlock (media->lock);
+}
+
+/**
+ * gst_rtsp_media_get_multicast_group:
+ * @media: a #GstRTSPMedia
+ *
+ * Get the multicast group that media from @media will be streamed to.
+ *
+ * Returns: the multicast group
+ */
+gchar *
+gst_rtsp_media_get_multicast_group (GstRTSPMedia * media)
+{
+  gchar *result;
+
+  g_return_val_if_fail (GST_IS_RTSP_MEDIA (media), NULL);
+
+  g_mutex_lock (media->lock);
+  result = g_strdup (media->multicast_group);
+  g_mutex_unlock (media->lock);
+
+  return result;
+}
+
+/**
+ * gst_rtsp_media_set_auth:
+ * @media: a #GstRTSPMedia
+ * @auth: a #GstRTSPAuth
+ *
+ * configure @auth to be used as the authentication manager of @media.
+ */
+void
+gst_rtsp_media_set_auth (GstRTSPMedia * media, GstRTSPAuth * auth)
+{
+  GstRTSPAuth *old;
+
+  g_return_if_fail (GST_IS_RTSP_MEDIA (media));
+
+  old = media->auth;
+
+  if (old != auth) {
+    if (auth)
+      g_object_ref (auth);
+    media->auth = auth;
+    if (old)
+      g_object_unref (old);
+  }
+}
+
+/**
+ * gst_rtsp_media_get_auth:
+ * @media: a #GstRTSPMedia
+ *
+ * Get the #GstRTSPAuth used as the authentication manager of @media.
+ *
+ * Returns: the #GstRTSPAuth of @media. g_object_unref() after
+ * usage.
+ */
+GstRTSPAuth *
+gst_rtsp_media_get_auth (GstRTSPMedia * media)
+{
+  GstRTSPAuth *result;
+
+  g_return_val_if_fail (GST_IS_RTSP_MEDIA (media), NULL);
+
+  if ((result = media->auth))
+    g_object_ref (result);
+
+  return result;
+}
+
 
 /**
  * gst_rtsp_media_n_streams:
@@ -446,8 +673,36 @@ gst_rtsp_media_get_stream (GstRTSPMedia * media, guint idx)
 }
 
 /**
+ * gst_rtsp_media_get_range_string:
+ * @media: a #GstRTSPMedia
+ * @play: for the PLAY request
+ *
+ * Get the current range as a string.
+ *
+ * Returns: The range as a string, g_free() after usage.
+ */
+gchar *
+gst_rtsp_media_get_range_string (GstRTSPMedia * media, gboolean play)
+{
+  gchar *result;
+  GstRTSPTimeRange range;
+
+  /* make copy */
+  range = media->range;
+
+  if (!play && media->active > 0) {
+    range.min.type = GST_RTSP_TIME_NOW;
+    range.min.seconds = -1;
+  }
+
+  result = gst_rtsp_range_to_string (&range);
+
+  return result;
+}
+
+/**
  * gst_rtsp_media_seek:
- * @stream: a #GstRTSPMediaStream
+ * @media: a #GstRTSPMedia
  * @range: a #GstRTSPTimeRange
  *
  * Seek the pipeline to @range.
@@ -464,6 +719,11 @@ gst_rtsp_media_seek (GstRTSPMedia * media, GstRTSPTimeRange * range)
 
   g_return_val_if_fail (GST_IS_RTSP_MEDIA (media), FALSE);
   g_return_val_if_fail (range != NULL, FALSE);
+
+  if (media->seekable) {
+    GST_INFO ("pipeline is not seekable");
+    return TRUE;
+  }
 
   if (range->unit != GST_RTSP_RANGE_NPT)
     goto not_supported;
@@ -697,6 +957,22 @@ again:
   if (!udpsink1)
     goto no_udp_protocol;
 
+  if (g_object_class_find_property (G_OBJECT_GET_CLASS (udpsink0),
+          "send-duplicates")) {
+    g_object_set (G_OBJECT (udpsink0), "send-duplicates", FALSE, NULL);
+    g_object_set (G_OBJECT (udpsink1), "send-duplicates", FALSE, NULL);
+  } else {
+    g_warning
+        ("old multiudpsink version found without send-duplicates property");
+  }
+
+  if (g_object_class_find_property (G_OBJECT_GET_CLASS (udpsink0),
+          "buffer-size")) {
+    g_object_set (G_OBJECT (udpsink0), "buffer-size", media->buffer_size, NULL);
+  } else {
+    GST_WARNING ("multiudpsink version found without buffer-size property");
+  }
+
   g_object_get (G_OBJECT (udpsrc1), "sock", &sockfd, NULL);
   g_object_set (G_OBJECT (udpsink1), "sockfd", sockfd, NULL);
   g_object_set (G_OBJECT (udpsink1), "closefd", FALSE, NULL);
@@ -758,6 +1034,7 @@ cleanup:
   }
 }
 
+/* executed from streaming thread */
 static void
 caps_notify (GstPad * pad, GParamSpec * unused, GstRTSPMediaStream * stream)
 {
@@ -954,10 +1231,42 @@ handle_new_buffer (GstAppSink * sink, gpointer user_data)
   return GST_FLOW_OK;
 }
 
+static GstFlowReturn
+handle_new_buffer_list (GstAppSink * sink, gpointer user_data)
+{
+  GList *walk;
+  GstBufferList *blist;
+  GstRTSPMediaStream *stream;
+
+  blist = gst_app_sink_pull_buffer_list (sink);
+  if (!blist)
+    return GST_FLOW_OK;
+
+  stream = (GstRTSPMediaStream *) user_data;
+
+  for (walk = stream->transports; walk; walk = g_list_next (walk)) {
+    GstRTSPMediaTrans *tr = (GstRTSPMediaTrans *) walk->data;
+
+    if (GST_ELEMENT_CAST (sink) == stream->appsink[0]) {
+      if (tr->send_rtp_list)
+        tr->send_rtp_list (blist, tr->transport->interleaved.min,
+            tr->user_data);
+    } else {
+      if (tr->send_rtcp_list)
+        tr->send_rtcp_list (blist, tr->transport->interleaved.max,
+            tr->user_data);
+    }
+  }
+  gst_buffer_list_unref (blist);
+
+  return GST_FLOW_OK;
+}
+
 static GstAppSinkCallbacks sink_cb = {
   NULL,                         /* not interested in EOS */
   NULL,                         /* not interested in preroll buffers */
-  handle_new_buffer
+  handle_new_buffer,
+  handle_new_buffer_list
 };
 
 /* prepare the pipeline objects to handle @stream in @media */
@@ -1076,8 +1385,7 @@ setup_stream (GstRTSPMediaStream * stream, guint idx, GstRTSPMedia * media)
   gst_object_unref (teepad);
 
   /* make selector for the RTP receivers */
-  stream->selector[0] = gst_element_factory_make ("input-selector", NULL);
-  g_object_set (stream->selector[0], "select-all", TRUE, NULL);
+  stream->selector[0] = gst_element_factory_make ("rtspfunnel", NULL);
   gst_bin_add (GST_BIN_CAST (media->pipeline), stream->selector[0]);
 
   pad = gst_element_get_static_pad (stream->selector[0], "src");
@@ -1097,8 +1405,7 @@ setup_stream (GstRTSPMediaStream * stream, guint idx, GstRTSPMedia * media)
   gst_object_unref (selpad);
 
   /* make selector for the RTCP receivers */
-  stream->selector[1] = gst_element_factory_make ("input-selector", NULL);
-  g_object_set (stream->selector[1], "select-all", TRUE, NULL);
+  stream->selector[1] = gst_element_factory_make ("rtspfunnel", NULL);
   gst_bin_add (GST_BIN_CAST (media->pipeline), stream->selector[1]);
 
   pad = gst_element_get_static_pad (stream->selector[1], "src");
@@ -1158,7 +1465,7 @@ unlock_streams (GstRTSPMedia * media)
 }
 
 static void
-gst_rtsp_media_set_status (GstRTSPMedia *media, GstRTSPMediaStatus status)
+gst_rtsp_media_set_status (GstRTSPMedia * media, GstRTSPMediaStatus status)
 {
   g_mutex_lock (media->lock);
   /* never overwrite the error status */
@@ -1170,7 +1477,7 @@ gst_rtsp_media_set_status (GstRTSPMedia *media, GstRTSPMediaStatus status)
 }
 
 static GstRTSPMediaStatus
-gst_rtsp_media_get_status (GstRTSPMedia *media)
+gst_rtsp_media_get_status (GstRTSPMedia * media)
 {
   GstRTSPMediaStatus result;
   GTimeVal timeout;
@@ -1273,10 +1580,26 @@ default_handle_message (GstRTSPMedia * media, GstMessage * message)
     case GST_MESSAGE_STREAM_STATUS:
       break;
     case GST_MESSAGE_ASYNC_DONE:
-      GST_INFO ("%p: got ASYNC_DONE", media);
-      collect_media_stats (media);
+      if (!media->adding) {
+        /* when we are dynamically adding pads, the addition of the udpsrc will
+         * temporarily produce ASYNC_DONE messages. We have to ignore them and
+         * wait for the final ASYNC_DONE after everything prerolled */
+        GST_INFO ("%p: got ASYNC_DONE", media);
+        collect_media_stats (media);
 
-      gst_rtsp_media_set_status (media, GST_RTSP_MEDIA_STATUS_PREPARED);
+        gst_rtsp_media_set_status (media, GST_RTSP_MEDIA_STATUS_PREPARED);
+      } else {
+        GST_INFO ("%p: ignoring ASYNC_DONE", media);
+      }
+      break;
+    case GST_MESSAGE_EOS:
+      GST_INFO ("%p: got EOS", media);
+      if (media->eos_pending) {
+        GST_DEBUG ("shutting down after EOS");
+        gst_element_set_state (media->pipeline, GST_STATE_NULL);
+        media->eos_pending = FALSE;
+        g_object_unref (media);
+      }
       break;
     default:
       GST_INFO ("%p: got message type %s", media,
@@ -1302,6 +1625,7 @@ bus_message (GstBus * bus, GstMessage * message, GstRTSPMedia * media)
   return ret;
 }
 
+/* called from streaming threads */
 static void
 pad_added_cb (GstElement * element, GstPad * pad, GstRTSPMedia * media)
 {
@@ -1317,6 +1641,8 @@ pad_added_cb (GstElement * element, GstPad * pad, GstRTSPMedia * media)
   stream->payloader = element;
 
   name = g_strdup_printf ("dynpay%d", i);
+
+  media->adding = TRUE;
 
   /* ghost the pad of the payloader to the element */
   stream->srcpad = gst_ghost_pad_new (name, pad);
@@ -1336,6 +1662,7 @@ pad_added_cb (GstElement * element, GstPad * pad, GstRTSPMedia * media)
     gst_element_set_state (stream->selector[i], GST_STATE_PAUSED);
     gst_element_set_state (stream->appsrc[i], GST_STATE_PAUSED);
   }
+  media->adding = FALSE;
 }
 
 static void
@@ -1354,7 +1681,7 @@ no_more_pads_cb (GstElement * element, GstRTSPMedia * media)
 
 /**
  * gst_rtsp_media_prepare:
- * @obj: a #GstRTSPMedia
+ * @media: a #GstRTSPMedia
  *
  * Prepare @media for streaming. This function will create the pipeline and
  * other objects to manage the streaming.
@@ -1384,6 +1711,7 @@ gst_rtsp_media_prepare (GstRTSPMedia * media)
 
   /* reset some variables */
   media->is_live = FALSE;
+  media->seekable = FALSE;
   media->buffering = FALSE;
   /* we're preparing now */
   media->status = GST_RTSP_MEDIA_STATUS_PREPARING;
@@ -1418,6 +1746,8 @@ gst_rtsp_media_prepare (GstRTSPMedia * media)
   for (walk = media->dynamic; walk; walk = g_list_next (walk)) {
     GstElement *elem = walk->data;
 
+    GST_INFO ("adding callbacks for dynamic element %p", elem);
+
     g_signal_connect (elem, "pad-added", (GCallback) pad_added_cb, media);
     g_signal_connect (elem, "no-more-pads", (GCallback) no_more_pads_cb, media);
 
@@ -1435,13 +1765,18 @@ gst_rtsp_media_prepare (GstRTSPMedia * media)
   switch (ret) {
     case GST_STATE_CHANGE_SUCCESS:
       GST_INFO ("SUCCESS state change for media %p", media);
+      media->seekable = TRUE;
       break;
     case GST_STATE_CHANGE_ASYNC:
       GST_INFO ("ASYNC state change for media %p", media);
+      media->seekable = TRUE;
       break;
     case GST_STATE_CHANGE_NO_PREROLL:
       /* we need to go to PLAYING */
       GST_INFO ("NO_PREROLL state change: live media %p", media);
+      /* FIXME we disable seeking for live streams for now. We should perform a
+       * seeking query in preroll instead and do a seeking query. */
+      media->seekable = FALSE;
       media->is_live = TRUE;
       ret = gst_element_set_state (media->pipeline, GST_STATE_PLAYING);
       if (ret == GST_STATE_CHANGE_FAILURE)
@@ -1455,6 +1790,8 @@ gst_rtsp_media_prepare (GstRTSPMedia * media)
   status = gst_rtsp_media_get_status (media);
   if (status == GST_RTSP_MEDIA_STATUS_ERROR)
     goto state_failed;
+
+  g_signal_emit (media, gst_rtsp_media_signals[SIGNAL_PREPARED], 0, NULL);
 
   GST_INFO ("object %p is prerolled", media);
 
@@ -1483,7 +1820,7 @@ state_failed:
 
 /**
  * gst_rtsp_media_unprepare:
- * @obj: a #GstRTSPMedia
+ * @media: a #GstRTSPMedia
  *
  * Unprepare @media. After this call, the media should be prepared again before
  * it can be used again. If the media is set to be non-reusable, a new instance
@@ -1522,16 +1859,45 @@ gst_rtsp_media_unprepare (GstRTSPMedia * media)
 static gboolean
 default_unprepare (GstRTSPMedia * media)
 {
-  gst_element_set_state (media->pipeline, GST_STATE_NULL);
-
+  if (media->eos_shutdown) {
+    GST_DEBUG ("sending EOS for shutdown");
+    /* ref so that we don't disappear */
+    g_object_ref (media);
+    media->eos_pending = TRUE;
+    gst_element_send_event (media->pipeline, gst_event_new_eos ());
+    /* we need to go to playing again for the EOS to propagate, normally in this
+     * state, nothing is receiving data from us anymore so this is ok. */
+    gst_element_set_state (media->pipeline, GST_STATE_PLAYING);
+  } else {
+    GST_DEBUG ("shutting down");
+    gst_element_set_state (media->pipeline, GST_STATE_NULL);
+  }
   return TRUE;
+}
+
+static void
+add_udp_destination (GstRTSPMedia * media, GstRTSPMediaStream * stream,
+    gchar * dest, gint min, gint max)
+{
+  GST_INFO ("adding %s:%d-%d", dest, min, max);
+  g_signal_emit_by_name (stream->udpsink[0], "add", dest, min, NULL);
+  g_signal_emit_by_name (stream->udpsink[1], "add", dest, max, NULL);
+}
+
+static void
+remove_udp_destination (GstRTSPMedia * media, GstRTSPMediaStream * stream,
+    gchar * dest, gint min, gint max)
+{
+  GST_INFO ("removing %s:%d-%d", dest, min, max);
+  g_signal_emit_by_name (stream->udpsink[0], "remove", dest, min, NULL);
+  g_signal_emit_by_name (stream->udpsink[1], "remove", dest, max, NULL);
 }
 
 /**
  * gst_rtsp_media_set_state:
  * @media: a #GstRTSPMedia
  * @state: the target state of the media
- * @transports: a GArray of #GstRTSPMediaTrans pointers
+ * @transports: a #GArray of #GstRTSPMediaTrans pointers
  *
  * Set the state of @media to @state and for the transports in @transports.
  *
@@ -1542,7 +1908,6 @@ gst_rtsp_media_set_state (GstRTSPMedia * media, GstState state,
     GArray * transports)
 {
   gint i;
-  GstStateChangeReturn ret;
   gboolean add, remove, do_state;
   gint old_active;
 
@@ -1610,16 +1975,12 @@ gst_rtsp_media_set_state (GstRTSPMedia * media, GstState state,
         }
 
         if (add && !tr->active) {
-          GST_INFO ("adding %s:%d-%d", dest, min, max);
-          g_signal_emit_by_name (stream->udpsink[0], "add", dest, min, NULL);
-          g_signal_emit_by_name (stream->udpsink[1], "add", dest, max, NULL);
+          add_udp_destination (media, stream, dest, min, max);
           stream->transports = g_list_prepend (stream->transports, tr);
           tr->active = TRUE;
           media->active++;
         } else if (remove && tr->active) {
-          GST_INFO ("removing %s:%d-%d", dest, min, max);
-          g_signal_emit_by_name (stream->udpsink[0], "remove", dest, min, NULL);
-          g_signal_emit_by_name (stream->udpsink[1], "remove", dest, max, NULL);
+          remove_udp_destination (media, stream, dest, min, max);
           stream->transports = g_list_remove (stream->transports, tr);
           tr->active = FALSE;
           media->active--;
@@ -1654,20 +2015,26 @@ gst_rtsp_media_set_state (GstRTSPMedia * media, GstState state,
   else
     do_state = FALSE;
 
-  GST_INFO ("active %d media %p", media->active, media);
+  GST_INFO ("state %d active %d media %p do_state %d", state, media->active,
+      media, do_state);
 
-  if (do_state && media->target_state != state) {
-    if (state == GST_STATE_NULL) {
-      gst_rtsp_media_unprepare (media);
-    } else {
-      GST_INFO ("state %s media %p", gst_element_state_get_name (state), media);
-      media->target_state = state;
-      ret = gst_element_set_state (media->pipeline, state);
+  if (media->target_state != state) {
+    if (do_state) {
+      if (state == GST_STATE_NULL) {
+        gst_rtsp_media_unprepare (media);
+      } else {
+        GST_INFO ("state %s media %p", gst_element_state_get_name (state),
+            media);
+        media->target_state = state;
+        gst_element_set_state (media->pipeline, state);
+      }
     }
+    g_signal_emit (media, gst_rtsp_media_signals[SIGNAL_NEW_STATE], 0, state,
+        NULL);
   }
 
   /* remember where we are */
-  if (state == GST_STATE_PAUSED)
+  if (state == GST_STATE_PAUSED || old_active != media->active)
     collect_media_stats (media);
 
   return TRUE;

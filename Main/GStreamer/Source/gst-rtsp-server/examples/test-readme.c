@@ -45,8 +45,8 @@ main (int argc, char *argv[])
    * any launch line works as long as it contains elements named pay%d. Each
    * element with pay%d names will be a stream */
   factory = gst_rtsp_media_factory_new ();
-  gst_rtsp_media_factory_set_launch (factory, 
-    "( videotestsrc is-live=1 ! x264enc ! rtph264pay name=pay0 pt=96 )");
+  gst_rtsp_media_factory_set_launch (factory,
+      "( videotestsrc is-live=1 ! x264enc ! rtph264pay name=pay0 pt=96 )");
 
   gst_rtsp_media_factory_set_shared (factory, TRUE);
 
@@ -60,6 +60,7 @@ main (int argc, char *argv[])
   gst_rtsp_server_attach (server, NULL);
 
   /* start serving */
+  g_print ("stream ready at rtsp://127.0.0.1:8554/test\n");
   g_main_loop_run (loop);
 
   return 0;

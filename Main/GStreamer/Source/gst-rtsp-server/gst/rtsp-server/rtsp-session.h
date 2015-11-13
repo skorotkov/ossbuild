@@ -21,8 +21,6 @@
 
 #include <gst/rtsp/gstrtsptransport.h>
 
-#include "rtsp-media.h"
-
 #ifndef __GST_RTSP_SESSION_H__
 #define __GST_RTSP_SESSION_H__
 
@@ -42,6 +40,8 @@ typedef struct _GstRTSPSessionClass GstRTSPSessionClass;
 
 typedef struct _GstRTSPSessionStream GstRTSPSessionStream;
 typedef struct _GstRTSPSessionMedia GstRTSPSessionMedia;
+
+#include "rtsp-media.h"
 
 /**
  * GstRTSPSessionStream:
@@ -132,12 +132,12 @@ gboolean               gst_rtsp_session_is_expired           (GstRTSPSession *se
 /* handle media in a session */
 GstRTSPSessionMedia *  gst_rtsp_session_manage_media         (GstRTSPSession *sess,
                                                               const GstRTSPUrl *uri,
-							      GstRTSPMedia *media);
+                                                              GstRTSPMedia *media);
 gboolean               gst_rtsp_session_release_media        (GstRTSPSession *sess,
                                                               GstRTSPSessionMedia *media);
 /* get media in a session */
 GstRTSPSessionMedia *  gst_rtsp_session_get_media            (GstRTSPSession *sess,
-                                                              const GstRTSPUrl *uri);
+                                                              const GstRTSPUrl *url);
 /* control media */
 gboolean               gst_rtsp_session_media_set_state      (GstRTSPSessionMedia *media, GstState state);
 
@@ -154,6 +154,8 @@ GstRTSPTransport *     gst_rtsp_session_stream_set_transport (GstRTSPSessionStre
 void                   gst_rtsp_session_stream_set_callbacks (GstRTSPSessionStream *stream,
                                                               GstRTSPSendFunc send_rtp,
                                                               GstRTSPSendFunc send_rtcp,
+                                                              GstRTSPSendListFunc send_rtp_list,
+                                                              GstRTSPSendListFunc send_rtcp_list,
                                                               gpointer user_data,
                                                               GDestroyNotify  notify);
 void                   gst_rtsp_session_stream_set_keepalive (GstRTSPSessionStream *stream,

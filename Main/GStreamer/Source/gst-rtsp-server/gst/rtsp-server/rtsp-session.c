@@ -32,7 +32,7 @@ enum
   PROP_LAST
 };
 
-GST_DEBUG_CATEGORY_EXTERN (rtsp_session_debug);
+GST_DEBUG_CATEGORY_STATIC (rtsp_session_debug);
 #define GST_CAT_DEFAULT rtsp_session_debug
 
 static void gst_rtsp_session_get_property (GObject * object, guint propid,
@@ -63,6 +63,9 @@ gst_rtsp_session_class_init (GstRTSPSessionClass * klass)
       g_param_spec_uint ("timeout", "timeout",
           "the timeout of the session (0 = never)", 0, G_MAXUINT,
           DEFAULT_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  GST_DEBUG_CATEGORY_INIT (rtsp_session_debug, "rtspsession", 0,
+      "GstRTSPSession");
 }
 
 static void
@@ -79,11 +82,11 @@ gst_rtsp_session_free_stream (GstRTSPSessionStream * stream)
   GST_INFO ("free session stream %p", stream);
 
   /* remove callbacks now */
-  gst_rtsp_session_stream_set_callbacks (stream, NULL, NULL, NULL, NULL);
+  gst_rtsp_session_stream_set_callbacks (stream, NULL, NULL, NULL, NULL, NULL,
+      NULL);
   gst_rtsp_session_stream_set_keepalive (stream, NULL, NULL, NULL);
 
-  if (stream->trans.transport)
-    gst_rtsp_transport_free (stream->trans.transport);
+  gst_rtsp_media_trans_cleanup (&stream->trans);
 
   g_free (stream);
 }
@@ -179,10 +182,10 @@ gst_rtsp_session_set_property (GObject * object, guint propid,
 /**
  * gst_rtsp_session_manage_media:
  * @sess: a #GstRTSPSession
- * @url: the url for the media
- * @media: a #GstRTSPMediaObject
+ * @uri: the uri for the media
+ * @media: a #GstRTSPMedia
  *
- * Manage the media object @obj in @sess. @url will be used to retrieve this
+ * Manage the media object @obj in @sess. @uri will be used to retrieve this
  * media from the session with gst_rtsp_session_get_media().
  *
  * Ownership is taken from @media.
@@ -223,7 +226,7 @@ gst_rtsp_session_manage_media (GstRTSPSession * sess, const GstRTSPUrl * uri,
 /**
  * gst_rtsp_session_release_media:
  * @sess: a #GstRTSPSession
- * @media: a #GstRTSPMediaObject
+ * @media: a #GstRTSPMedia
  *
  * Release the managed @media in @sess, freeing the memory allocated by it.
  *
@@ -422,7 +425,7 @@ gst_rtsp_session_touch (GstRTSPSession * session)
 }
 
 void
-gst_rtsp_session_prevent_expire (GstRTSPSession *session)
+gst_rtsp_session_prevent_expire (GstRTSPSession * session)
 {
   g_return_if_fail (GST_IS_RTSP_SESSION (session));
 
@@ -430,7 +433,7 @@ gst_rtsp_session_prevent_expire (GstRTSPSession *session)
 }
 
 void
-gst_rtsp_session_allow_expire (GstRTSPSession *session)
+gst_rtsp_session_allow_expire (GstRTSPSession * session)
 {
   g_atomic_int_add (&session->expire_count, -1);
 }
@@ -550,6 +553,8 @@ gst_rtsp_session_stream_set_transport (GstRTSPSessionStream * stream,
  * @stream: a #GstRTSPSessionStream
  * @send_rtp: a callback called when RTP should be sent
  * @send_rtcp: a callback called when RTCP should be sent
+ * @send_rtp_list: a callback called when RTP should be sent
+ * @send_rtcp_list: a callback called when RTCP should be sent
  * @user_data: user data passed to callbacks
  * @notify: called with the user_data when no longer needed.
  *
@@ -558,11 +563,14 @@ gst_rtsp_session_stream_set_transport (GstRTSPSessionStream * stream,
  */
 void
 gst_rtsp_session_stream_set_callbacks (GstRTSPSessionStream * stream,
-    GstRTSPSendFunc send_rtp, GstRTSPSendFunc send_rtcp, gpointer user_data,
-    GDestroyNotify notify)
+    GstRTSPSendFunc send_rtp, GstRTSPSendFunc send_rtcp,
+    GstRTSPSendListFunc send_rtp_list, GstRTSPSendListFunc send_rtcp_list,
+    gpointer user_data, GDestroyNotify notify)
 {
   stream->trans.send_rtp = send_rtp;
   stream->trans.send_rtcp = send_rtcp;
+  stream->trans.send_rtp_list = send_rtp_list;
+  stream->trans.send_rtcp_list = send_rtcp_list;
   if (stream->trans.notify)
     stream->trans.notify (stream->trans.user_data);
   stream->trans.user_data = user_data;

@@ -13,9 +13,9 @@ AC_DEFUN([AG_GST_VALGRIND_CHECK],
       USE_VALGRIND="$USE_DEBUG"
     ]) dnl Default value
 
-  VALGRIND_REQ="2.1"
+  VALGRIND_REQ="3.0"
   if test "x$USE_VALGRIND" = xyes; then
-    PKG_CHECK_MODULES(VALGRIND, valgrind > $VALGRIND_REQ,
+    PKG_CHECK_MODULES(VALGRIND, valgrind >= $VALGRIND_REQ,
       USE_VALGRIND="yes",
       [
         USE_VALGRIND="no"
@@ -29,7 +29,7 @@ AC_DEFUN([AG_GST_VALGRIND_CHECK],
   fi
   AC_SUBST(VALGRIND_CFLAGS)
   AC_SUBST(VALGRIND_LIBS)
-  
+
   AC_PATH_PROG(VALGRIND_PATH, valgrind, no)
   AM_CONDITIONAL(HAVE_VALGRIND, test ! "x$VALGRIND_PATH" = "xno")
 ])

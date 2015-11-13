@@ -22,9 +22,13 @@
 #ifndef __GST_RTSP_SESSION_POOL_H__
 #define __GST_RTSP_SESSION_POOL_H__
 
-#include "rtsp-session.h"
 
 G_BEGIN_DECLS
+
+typedef struct _GstRTSPSessionPool GstRTSPSessionPool;
+typedef struct _GstRTSPSessionPoolClass GstRTSPSessionPoolClass;
+
+#include "rtsp-session.h"
 
 #define GST_TYPE_RTSP_SESSION_POOL              (gst_rtsp_session_pool_get_type ())
 #define GST_IS_RTSP_SESSION_POOL(obj)           (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GST_TYPE_RTSP_SESSION_POOL))
@@ -34,9 +38,6 @@ G_BEGIN_DECLS
 #define GST_RTSP_SESSION_POOL_CLASS(klass)      (G_TYPE_CHECK_CLASS_CAST ((klass), GST_TYPE_RTSP_SESSION_POOL, GstRTSPSessionPoolClass))
 #define GST_RTSP_SESSION_POOL_CAST(obj)         ((GstRTSPSessionPool*)(obj))
 #define GST_RTSP_SESSION_POOL_CLASS_CAST(klass) ((GstRTSPSessionPoolClass*)(klass))
-
-typedef struct _GstRTSPSessionPool GstRTSPSessionPool;
-typedef struct _GstRTSPSessionPoolClass GstRTSPSessionPoolClass;
 
 /**
  * GstRTSPSessionPool:
@@ -77,7 +78,7 @@ struct _GstRTSPSessionPoolClass {
  * The function will be called when the pool must be cleaned up because one or
  * more sessions timed out.
  *
- * Returns: %FALSe if the source should be removed.
+ * Returns: %FALSE if the source should be removed.
  */
 typedef gboolean (*GstRTSPSessionPoolFunc)  (GstRTSPSessionPool *pool, gpointer user_data);
 
@@ -142,7 +143,7 @@ gboolean              gst_rtsp_session_pool_remove            (GstRTSPSessionPoo
 /* perform session maintenance */
 GList *               gst_rtsp_session_pool_filter            (GstRTSPSessionPool *pool,
                                                                GstRTSPSessionFilterFunc func,
-							       gpointer user_data);
+                                                               gpointer user_data);
 guint                 gst_rtsp_session_pool_cleanup           (GstRTSPSessionPool *pool);
 GSource *             gst_rtsp_session_pool_create_watch      (GstRTSPSessionPool *pool);
 

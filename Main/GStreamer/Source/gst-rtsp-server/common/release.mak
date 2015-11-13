@@ -5,8 +5,8 @@
 AUTOMAKE_OPTIONS = dist-bzip2
 
 release: dist
-	make $(PACKAGE)-$(VERSION).tar.gz.md5
-	make $(PACKAGE)-$(VERSION).tar.bz2.md5
+	$(MAKE) $(PACKAGE)-$(VERSION).tar.gz.md5
+	$(MAKE) $(PACKAGE)-$(VERSION).tar.bz2.md5
 
 # generate md5 sum files
 %.md5: %
@@ -19,7 +19,7 @@ distcheck-hook:
 	@test "x" = "x`find $(distdir) -name \*-enumtypes.[ch] | grep -v win32`" && \
 	test "x" = "x`find $(distdir) -name \*-marshal.[ch]`" || \
 	( $(ECHO) "*** Leftover enumtypes or marshal files in the tarball." && \
-          $(ECHO) "*** Make sure the following files are not disted:" && \
-          find $(distdir) -name \*-enumtypes.[ch] | grep -v win32 && \
-          find $(distdir) -name \*-marshal.[ch] && \
-          false )
+	  $(ECHO) "*** Make sure the following files are not disted:" && \
+	  find $(distdir) -name \*-enumtypes.[ch] | grep -v win32 && \
+	  find $(distdir) -name \*-marshal.[ch] && \
+	  false )
