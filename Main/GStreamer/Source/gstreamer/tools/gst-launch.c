@@ -489,6 +489,17 @@ print_tag (const GstTagList * list, const gchar * tag, gpointer unused)
   }
 }
 
+static gboolean
+timeoutCb(GstElement *_pipeline)
+{
+    /* post an application specific message */
+    gst_element_post_message (GST_ELEMENT (pipeline),
+        gst_message_new_application (GST_OBJECT (pipeline),
+				     gst_structure_new ("GstLaunchInterrupt",
+                "message", G_TYPE_STRING, "Pipeline interrupted", NULL)));
+    return FALSE;
+}
+
 #ifndef DISABLE_FAULT_HANDLER
 /* we only use sighandler here because the registers are not important */
 static void
@@ -895,6 +906,8 @@ main (int argc, char *argv[])
   gboolean trace = FALSE;
   gboolean eos_on_shutdown = FALSE;
   gboolean check_index = FALSE;
+  gint timeout = 0;
+  gint delay = 0;
   gchar *savefile = NULL;
   gchar *exclude_args = NULL;
 #ifndef GST_DISABLE_OPTION_PARSING
@@ -923,6 +936,10 @@ main (int argc, char *argv[])
         N_("Force EOS on sources before shutting the pipeline down"), NULL},
     {"index", 'i', 0, G_OPTION_ARG_NONE, &check_index,
         N_("Gather and print index statistics"), NULL},
+    {"timeout", 'Z', 0, G_OPTION_ARG_INT, &timeout,
+	N_("Shutdown by timeout after this number of seconds"), NULL},
+    {"delay", 'D', 0, G_OPTION_ARG_INT, &delay,
+	N_("Wait this number of seconds before making pipeline (allow to connect with debugger)"), NULL},
     GST_TOOLS_GOPTION_VERSION,
     {NULL}
   };
@@ -962,6 +979,9 @@ main (int argc, char *argv[])
 #else
   gst_init (&argc, &argv);
 #endif
+
+  if (delay > 0)
+    g_usleep (delay * 1000000);
 
   gst_tools_print_version ("gst-launch");
 
@@ -1096,6 +1116,9 @@ main (int argc, char *argv[])
         PRINT (_("Pipeline is PREROLLED ...\n"));
         break;
     }
+
+    if (timeout != 0)
+	g_timeout_add(timeout*1000, timeoutCb, pipeline);
 
     caught_error = event_loop (pipeline, FALSE, GST_STATE_PLAYING);
 
