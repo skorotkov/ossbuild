@@ -52,13 +52,15 @@ G_BEGIN_DECLS
  * @GST_RTSP_TRANS_UNKNOWN: invalid tansport mode
  * @GST_RTSP_TRANS_RTP: transfer RTP data
  * @GST_RTSP_TRANS_RDT: transfer RDT (RealMedia) data
+ * @GST_RTSP_TRANS_RAW: transfer raw data
  *
  * The transfer mode to use.
  */
 typedef enum {
   GST_RTSP_TRANS_UNKNOWN =  0,
   GST_RTSP_TRANS_RTP     = (1 << 0),
-  GST_RTSP_TRANS_RDT     = (1 << 1)
+  GST_RTSP_TRANS_RDT     = (1 << 1),
+  GST_RTSP_TRANS_RAW     = (1 << 2)
 } GstRTSPTransMode;
 
 /**
@@ -66,13 +68,15 @@ typedef enum {
  * @GST_RTSP_PROFILE_UNKNOWN: invalid profile
  * @GST_RTSP_PROFILE_AVP: the Audio/Visual profile
  * @GST_RTSP_PROFILE_SAVP: the secure Audio/Visual profile
+ * @GST_RTSP_PROFILE_RAW: raw profile
  *
  * The transfer profile to use.
  */
 typedef enum {
   GST_RTSP_PROFILE_UNKNOWN =  0,
   GST_RTSP_PROFILE_AVP     = (1 << 0),
-  GST_RTSP_PROFILE_SAVP    = (1 << 1)
+  GST_RTSP_PROFILE_SAVP    = (1 << 1),
+  GST_RTSP_PROFILE_RAW     = (1 << 2)
 } GstRTSPProfile;
 
 /**

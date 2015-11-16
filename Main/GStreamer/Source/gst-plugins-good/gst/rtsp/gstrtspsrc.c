@@ -477,6 +477,7 @@ gst_rtspsrc_init (GstRTSPSrc * src, GstRTSPSrcClass * g_class)
 #endif
 
   src->conninfo.location = g_strdup (DEFAULT_LOCATION);
+  src->is_raw_udp = 0;
   src->protocols = DEFAULT_PROTOCOLS;
   src->debug = DEFAULT_DEBUG;
   src->retry = DEFAULT_RETRY;
@@ -971,6 +972,7 @@ gst_rtspsrc_create_stream (GstRTSPSrc * src, GstSDPMessage * sdp, gint idx)
   media = gst_sdp_message_get_media (sdp, idx);
   if (media == NULL)
     return NULL;
+  src->is_raw_udp = g_str_equal(media->proto, "udp");
 
   stream = g_new0 (GstRTSPStream, 1);
   stream->parent = src;
@@ -2200,12 +2202,23 @@ new_manager_pad (GstElement * manager, GstPad * pad, GstRTSPSrc * src)
   GST_DEBUG_OBJECT (src, "got new manager pad %" GST_PTR_FORMAT, pad);
 
   GST_RTSP_STATE_LOCK (src);
+
   /* find stream */
   name = gst_object_get_name (GST_OBJECT_CAST (pad));
-  if (sscanf (name, "recv_rtp_src_%d_%d_%d", &id, &ssrc, &pt) != 3)
-    goto unknown_stream;
 
-  GST_DEBUG_OBJECT (src, "stream: %u, SSRC %d, PT %d", id, ssrc, pt);
+#ifdef USE_HARDCODED_UDP_PROTO
+  if (src->is_raw_udp) {
+    id = (gint) (intptr_t) g_object_get_data(G_OBJECT(manager), "my-stream-id");
+  }
+  else {
+#endif
+    if (sscanf (name, "recv_rtp_src_%d_%d_%d", &id, &ssrc, &pt) != 3)
+      goto unknown_stream;
+
+    GST_DEBUG_OBJECT (src, "stream: %u, SSRC %d, PT %d", id, ssrc, pt);
+#ifdef USE_HARDCODED_UDP_PROTO
+  }
+#endif
 
   stream = find_stream (src, &id, (gpointer) find_stream_by_id);
   if (stream == NULL)
@@ -2369,6 +2382,52 @@ gst_rtspsrc_stream_configure_manager (GstRTSPSrc * src, GstRTSPStream * stream,
       GObjectClass *klass;
       GstState target;
 
+#ifdef USE_HARDCODED_UDP_PROTO
+      if (g_str_equal(manager, "gstudpbin")) {
+	// special handling for RAW/RAW/UDP (use rtppay on input stream)
+	// create payloader element
+	GstPad *sinkpad;
+	GstPad *srcpad;
+
+	src->manager = gst_element_factory_make("rtpgstpay", NULL);
+	if (!src->manager)
+	    goto manager_failed;
+
+	// remember stream id for this manager
+	g_object_set_data(G_OBJECT(src->manager), "my-stream-id", (gpointer) (intptr_t) stream->id);
+
+	/* we manage this element */
+	gst_bin_add(GST_BIN(src), src->manager);
+
+	GST_OBJECT_LOCK(src);
+	target = GST_STATE_TARGET(src);
+	GST_OBJECT_UNLOCK(src);
+
+	ret = gst_element_set_state(src->manager, target);
+	if (ret == GST_STATE_CHANGE_FAILURE)
+	    goto start_manager_failure;
+
+	// note: don't set latency
+
+	// note: don't set buffer-mode
+
+	// set sink pad
+	sinkpad = gst_element_get_static_pad(src->manager, "sink");
+	stream->channelpad[0] = sinkpad;
+	stream->channelpad[1] = NULL;
+
+	src->manager_sig_id =
+	    g_signal_connect(src->manager, "pad-added",
+	    (GCallback) new_manager_pad, src);
+
+	// emit pad added for rtppay src pad
+	srcpad = gst_element_get_static_pad(src->manager, "src");
+	g_signal_emit_by_name(src->manager, "pad-added", srcpad, src);
+
+	goto use_no_manager;
+      }
+#endif
+
       if (!(src->manager = gst_element_factory_make (manager, NULL))) {
         /* fallback */
         if (gst_rtsp_transport_get_manager (transport->trans, &manager, 1) < 0)
@@ -2490,6 +2549,12 @@ gst_rtspsrc_stream_configure_manager (GstRTSPSrc * src, GstRTSPStream * stream,
             (GCallback) on_ssrc_active, stream);
       }
     }
+
+    // create src pad for media with proto=udp
+    if (g_signal_lookup ("create-src-pad",
+            G_OBJECT_TYPE (src->manager)) != 0) {
+      g_signal_emit_by_name (src->manager, "create-src-pad", stream->id, stream->ssrc);
+    }
   }
 
 use_no_manager:
@@ -2575,6 +2640,12 @@ gst_rtspsrc_stream_configure_tcp (GstRTSPSrc * src, GstRTSPStream * stream,
 
     /* allocate pads for sending the channel data into the manager */
     pad0 = gst_pad_new_from_template (template, "internalsrc0");
+    if (src->is_raw_udp) {
+      // must set caps for media with proto=udp (both for hardcoded and manager)
+      GstCaps *caps = gst_caps_new_simple("video/mpegts", NULL);
+      gst_pad_set_caps(pad0, caps);
+      gst_caps_unref(caps);
+    }
     gst_pad_link (pad0, stream->channelpad[0]);
     gst_object_unref (stream->channelpad[0]);
     stream->channelpad[0] = pad0;
@@ -2596,7 +2667,11 @@ gst_rtspsrc_stream_configure_tcp (GstRTSPSrc * src, GstRTSPStream * stream,
     gst_object_unref (template);
   }
   /* setup RTCP transport back to the server if we have to. */
-  if (src->manager && src->do_rtcp) {
+  if (src->manager && src->do_rtcp
+#ifdef USE_HARDCODED_UDP_PROTO
+      && !src->is_raw_udp
+#endif
+      ) {
     GstPad *pad;
 
     template = gst_static_pad_template_get (&anysinktemplate);
@@ -2781,6 +2856,12 @@ gst_rtspsrc_stream_configure_udp (GstRTSPSrc * src, GstRTSPStream * stream,
       GST_DEBUG_OBJECT (src, "connecting UDP source 0 to manager");
       /* configure for UDP delivery, we need to connect the UDP pads to
        * the session plugin. */
+      if (src->is_raw_udp) {
+        // must set caps for media with proto=udp (both for hardcoded and manager)
+        GstCaps *caps = gst_caps_new_simple("video/mpegts", NULL);
+        gst_pad_set_caps(*outpad, caps);
+        gst_caps_unref(caps);
+      }
       gst_pad_link (*outpad, stream->channelpad[0]);
       gst_object_unref (*outpad);
       *outpad = NULL;
@@ -3176,7 +3257,11 @@ gst_rtspsrc_configure_caps (GstRTSPSrc * src, GstSegment * segment)
     }
     GST_DEBUG_OBJECT (src, "stream %p, caps %" GST_PTR_FORMAT, stream, caps);
   }
-  if (src->manager) {
+  if (src->manager
+#ifdef USE_HARDCODED_UDP_PROTO
+      && !src->is_raw_udp
+#endif
+      ) {
     GST_DEBUG_OBJECT (src, "clear session");
     g_signal_emit_by_name (src->manager, "clear-pt-map", NULL);
   }
@@ -4714,7 +4799,21 @@ gst_rtspsrc_create_transports_string (GstRTSPSrc * src,
 
   /* the default RTSP transports */
   result = g_string_new ("");
-  if (protocols & GST_RTSP_LOWER_TRANS_UDP) {
+  if (src->is_raw_udp) {
+    // send RAW/RAW/UDP for proto=udp media
+    GST_DEBUG_OBJECT(src, "adding RAW UDP");
+    g_string_append(result, "RAW/RAW");
+    if (protocols & GST_RTSP_LOWER_TRANS_UDP) {
+      g_string_append(result, "/UDP;unicast;client_port=%%u1-%%u2");
+    }
+    else if (protocols & GST_RTSP_LOWER_TRANS_UDP_MCAST) {
+      g_string_append (result, "/UDP;multicast");
+    }
+    else if (protocols & GST_RTSP_LOWER_TRANS_TCP) {
+      g_string_append (result, "/TCP;unicast;interleaved=%%i1-%%i2");
+    }
+  }
+  else if (protocols & GST_RTSP_LOWER_TRANS_UDP) {
     GST_DEBUG_OBJECT (src, "adding UDP unicast");
 
     g_string_append (result, "RTP/AVP");

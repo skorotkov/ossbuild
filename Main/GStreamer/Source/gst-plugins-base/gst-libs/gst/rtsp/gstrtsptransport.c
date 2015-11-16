@@ -85,6 +85,7 @@ static const GstRTSPTransMap transports[] = {
   {"rtp", GST_RTSP_TRANS_RTP, "application/x-rtp", {"gstrtpbin", "rtpdec"}},
   {"x-real-rdt", GST_RTSP_TRANS_RDT, "application/x-rdt", {"rdtmanager", NULL}},
   {"x-pn-tng", GST_RTSP_TRANS_RDT, "application/x-rdt", {"rdtmanager", NULL}},
+  {"raw", GST_RTSP_TRANS_RAW, "application/x-rtp", {"gstudpbin", NULL}},
   {NULL, GST_RTSP_TRANS_UNKNOWN, NULL, {NULL, NULL}}
 };
 
@@ -97,6 +98,7 @@ typedef struct
 static const RTSPProfileMap profiles[] = {
   {"avp", GST_RTSP_PROFILE_AVP},
   {"savp", GST_RTSP_PROFILE_SAVP},
+  {"raw", GST_RTSP_PROFILE_RAW},
   {NULL, GST_RTSP_PROFILE_UNKNOWN}
 };
 
@@ -427,6 +429,9 @@ gst_rtsp_transport_parse (const gchar * str, GstRTSPTransport * transport)
         break;
     transport->profile = profiles[i].profile;
     count = 2;
+  } else if (transport->trans == GST_RTSP_TRANS_RAW) {
+    transport->profile = GST_RTSP_PROFILE_RAW;
+    count = 1;
   } else {
     /* RDT has transport/lower_transport */
     transport->profile = GST_RTSP_PROFILE_AVP;

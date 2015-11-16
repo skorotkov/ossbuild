@@ -44,6 +44,9 @@
 #ifndef __GST_RTSPSRC_H__
 #define __GST_RTSPSRC_H__
 
+// define this to use hardcoded support for media with proto=udp (without special manager)
+//#define USE_HARDCODED_UDP_PROTO 1
+
 #include <gst/gst.h>
 
 G_BEGIN_DECLS
@@ -197,6 +200,9 @@ struct _GstRTSPSrc {
   GList           *streams;
   GstStructure    *props;
   gboolean         need_activate;
+
+  // set to 1 for RAW/RAW/UDP protocol
+  int               is_raw_udp;
 
   /* properties */
   GstRTSPLowerTrans protocols;

@@ -357,6 +357,14 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\..\..\..\Source\gst-plugins-good\gst\rtpmanager\gstudpbin1.c"
+				>
+			</File>
+			<File
+				RelativePath="..\..\..\..\..\Source\gst-plugins-good\gst\rtpmanager\gstudpbin1.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\..\..\..\Source\gst-plugins-good\gst\rtpmanager\rtpjitterbuffer.c"
 				>
 			</File>
@@ -393,6 +401,10 @@
 				>
 				<File
 					RelativePath="..\..\..\..\Generated\gst-plugins-good\gst\rtpmanager\gstrtpbin-marshal.c"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\..\Generated\gst-plugins-good\gst\rtpmanager\gstudpbin1-marshal.c"
 					>
 				</File>
 			</Filter>
