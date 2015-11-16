@@ -1,3 +1,5 @@
-Build
+Build/Windows
+dlls
 *.ncb
 *.suo
+*.user
