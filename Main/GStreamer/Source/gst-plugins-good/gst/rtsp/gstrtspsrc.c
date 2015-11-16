@@ -2640,12 +2640,16 @@ gst_rtspsrc_stream_configure_tcp (GstRTSPSrc * src, GstRTSPStream * stream,
 
     /* allocate pads for sending the channel data into the manager */
     pad0 = gst_pad_new_from_template (template, "internalsrc0");
-    if (src->is_raw_udp) {
-      // must set caps for media with proto=udp (both for hardcoded and manager)
-      GstCaps *caps = gst_caps_new_simple("video/mpegts", NULL);
-      gst_pad_set_caps(pad0, caps);
-      gst_caps_unref(caps);
-    }
+
+    // skor:
+    // No need to set caps here.  The gstudpbin would accept any caps.
+    // Actual caps will be detected by the downstream elements like typefind.
+    //if (src->is_raw_udp) {
+    //  // must set caps for media with proto=udp (both for hardcoded and manager)
+    //  GstCaps *caps = gst_caps_new_simple("video/mpegts", NULL);
+    //  gst_pad_set_caps(pad0, caps);
+    //  gst_caps_unref(caps);
+    //}
     gst_pad_link (pad0, stream->channelpad[0]);
     gst_object_unref (stream->channelpad[0]);
     stream->channelpad[0] = pad0;

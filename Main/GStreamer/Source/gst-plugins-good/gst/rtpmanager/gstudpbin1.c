@@ -34,7 +34,11 @@ static GstStaticPadTemplate udpbin_recv_rtp_sink_template =
 GST_STATIC_PAD_TEMPLATE ("recv_rtp_sink_%d",
     GST_PAD_SINK,
     GST_PAD_REQUEST,
-    GST_STATIC_CAPS ("video/mpegts")
+    // skor:
+    // no need to limit to MPEG2/TS - we will just gstpay anything and
+    // downstream elements (like typefind) will detect the actual caps
+    //GST_STATIC_CAPS ("video/mpegts")
+    GST_STATIC_CAPS_ANY
     );
 
 /* src pads */
