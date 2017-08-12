@@ -2324,20 +2324,28 @@ static void
 on_bye_ssrc (GObject * session, GObject * source, GstRTSPStream * stream)
 {
   GstRTSPSrc *src = stream->parent;
+  guint ssrc;
+
+  g_object_get (source, "ssrc", &ssrc, NULL);
 
   GST_DEBUG_OBJECT (src, "source in session %u received BYE", stream->id);
 
-  gst_rtspsrc_do_stream_eos (src, stream);
+  if (ssrc == stream->ssrc)
+    gst_rtspsrc_do_stream_eos (src, stream);
 }
 
 static void
 on_timeout (GObject * session, GObject * source, GstRTSPStream * stream)
 {
   GstRTSPSrc *src = stream->parent;
+  guint ssrc;
+
+  g_object_get (source, "ssrc", &ssrc, NULL);
 
   GST_DEBUG_OBJECT (src, "source in session %u timed out", stream->id);
-
-  gst_rtspsrc_do_stream_eos (src, stream);
+  
+  if (ssrc == stream->ssrc)
+    gst_rtspsrc_do_stream_eos (src, stream);
 }
 
 static void
