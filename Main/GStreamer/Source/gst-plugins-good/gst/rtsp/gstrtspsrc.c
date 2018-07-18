@@ -2224,6 +2224,9 @@ new_manager_pad (GstElement * manager, GstPad * pad, GstRTSPSrc * src)
   if (stream == NULL)
     goto unknown_stream;
 
+  /* save SSRC */
+  stream->ssrc = ssrc;
+
   /* create a new pad we will use to stream to */
   template = gst_static_pad_template_get (&rtptemplate);
   stream->srcpad = gst_ghost_pad_new_from_template (name, pad, template);
@@ -2328,7 +2331,7 @@ on_bye_ssrc (GObject * session, GObject * source, GstRTSPStream * stream)
 
   g_object_get (source, "ssrc", &ssrc, NULL);
 
-  GST_DEBUG_OBJECT (src, "source in session %u received BYE", stream->id);
+  GST_DEBUG_OBJECT (src, "source in session %u received BYE, stream->ssrc: %u, source->ssrc: %u", stream->id, ssrc, stream->ssrc);
 
   if (ssrc == stream->ssrc)
     gst_rtspsrc_do_stream_eos (src, stream);
@@ -2342,7 +2345,7 @@ on_timeout (GObject * session, GObject * source, GstRTSPStream * stream)
 
   g_object_get (source, "ssrc", &ssrc, NULL);
 
-  GST_DEBUG_OBJECT (src, "source in session %u timed out", stream->id);
+  GST_DEBUG_OBJECT (src, "source in session %u timed out, stream->ssrc: %u, source->ssrc: %u", stream->id, ssrc, stream->ssrc);
   
   if (ssrc == stream->ssrc)
     gst_rtspsrc_do_stream_eos (src, stream);
